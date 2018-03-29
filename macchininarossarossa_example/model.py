@@ -1,4 +1,5 @@
 from baselines.ddpg.models import Model
+import tensorflow as tf
 
 # The net output is the action vector
 class Actor(Model):
@@ -10,6 +11,9 @@ class Actor(Model):
     # obs is a TF placeholder with shape = env.observation shape
     def __call__(self, obs, reuse=False):
         with tf.variable_scope(self.name) as scope:
+
+            if reuse:
+                scope.reuse_variables()
             x = obs
             x = tf.layers.dense(x, 5)
             x = tf.nn.relu(x)
@@ -31,6 +35,8 @@ class Critic(Model):
 
     def __call__(self, obs, action, reuse=False):
         with tf.variable_scope(self.name) as scope:
+            if reuse:
+                scope.reuse_variables()
             x = tf.concat([obs, action], axis=-1)
             x = tf.layers.dense(x, 5)
             x = tf.nn.relu(x)
