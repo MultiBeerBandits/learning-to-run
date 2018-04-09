@@ -7,7 +7,10 @@ from baselines.common.misc_util import (
     set_global_seeds,
     boolean_flag,
 )
-import baselines.ddpg.training as training
+
+#import baselines.ddpg.training as training
+import training
+
 from model import Actor, Critic
 from baselines.ddpg.memory import Memory
 from baselines.ddpg.noise import *
@@ -26,7 +29,7 @@ def run(env_id, seed, noise_type, layer_norm, evaluation, **kwargs):
 
     # Create envs.
     env = gym.make(env_id)
-    env = bench.Monitor(env, logger.get_dir() and os.path.join(logger.get_dir(), str(rank)))
+    # env = bench.Monitor(env, logger.get_dir() and os.path.join(logger.get_dir(), str(rank)))
 
     if evaluation and rank==0:
         eval_env = gym.make(env_id)
@@ -56,8 +59,7 @@ def run(env_id, seed, noise_type, layer_norm, evaluation, **kwargs):
     # Disable logging for rank != 0 to avoid noise.
     if rank == 0:
         start_time = time.time()
-    training.train(env=env, eval_env=eval_env, param_noise=param_noise,
-        action_noise=action_noise, actor=actor, critic=critic, memory=memory, **kwargs)
+    training.train(env=env, action_noise=action_noise, actor=actor, critic=critic, memory=memory, **kwargs)
     env.close()
     if eval_env is not None:
         eval_env.close()
@@ -69,9 +71,9 @@ def parse_args():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     parser.add_argument('--env-id', type=str, default='HalfCheetah-v1')
-    boolean_flag(parser, 'render-eval', default=False)
+    #boolean_flag(parser, 'render-eval', default=False)
     boolean_flag(parser, 'layer-norm', default=True)
-    boolean_flag(parser, 'render', default=False)
+    #boolean_flag(parser, 'render', default=False)
     boolean_flag(parser, 'normalize-returns', default=False)
     boolean_flag(parser, 'normalize-observations', default=True)
     parser.add_argument('--seed', help='RNG seed', type=int, default=0)
@@ -83,11 +85,14 @@ def parse_args():
     parser.add_argument('--gamma', type=float, default=0.99)
     parser.add_argument('--reward-scale', type=float, default=1.)
     parser.add_argument('--clip-norm', type=float, default=None)
-    parser.add_argument('--nb-epochs', type=int, default=500)  # with default settings, perform 1M steps total
-    parser.add_argument('--nb-epoch-cycles', type=int, default=20)
-    parser.add_argument('--nb-train-steps', type=int, default=50)  # per epoch cycle and MPI worker
-    parser.add_argument('--nb-eval-steps', type=int, default=100)  # per epoch cycle and MPI worker
-    parser.add_argument('--nb-rollout-steps', type=int, default=100)  # per epoch cycle and MPI worker
+    parser.add_argument('--nb_epochs', type=int, default=500)  # with default settings, perform 1M steps total
+    parser.add_argument('--nb_episodes', type=int, default=20)
+    # per epoch cycle and MPI worker
+    parser.add_argument('--nb_train_steps', type=int, default=50)
+    parser.add_argument('--nb_eval_episodes', type=int, default=5)
+    # per epoch cycle and MPI worker
+    parser.add_argument('--episode_length', type=int, default=100)
+    parser.add_argument('--eval_freq', type=int, default=20)
     parser.add_argument('--noise-type', type=str, default='adaptive-param_0.2')  # choices are adaptive-param_xx, ou_xx, normal_xx, none
     parser.add_argument('--num-timesteps', type=int, default=None)
     boolean_flag(parser, 'evaluation', default=False)
