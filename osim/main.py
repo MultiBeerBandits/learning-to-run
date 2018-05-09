@@ -98,7 +98,6 @@ def parse_args():
     parser.add_argument('--num-timesteps', type=int, default=None)
     # DDPG improvements
     parser.add_argument('--action-repeat', type=int, default=1)
-    parser.add_argument('--reward-scale', type=float, default=1.0)
     boolean_flag(parser, 'evaluation', default=False)
     args = parser.parse_args()
     # we don't directly specify timesteps for this script, so make sure that if we do specify them

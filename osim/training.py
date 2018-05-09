@@ -88,7 +88,7 @@ class EvaluationStatistics:
 def train(envs, nb_epochs, nb_episodes, episode_length, nb_train_steps, eval_freq, nb_eval_episodes, actor,
           critic, memory, gamma, normalize_returns, normalize_observations,
           critic_l2_reg, actor_lr, critic_lr, action_noise, popart, clip_norm,
-          batch_size, reward_scale, action_repeat, reward_scale, tau=0.01):
+          batch_size, reward_scale, action_repeat, tau=0.01):
     """
     Parameters
     ----------
