@@ -4,6 +4,10 @@ from baselines import logger
 import baselines.common.tf_util as U
 import numpy as np
 import time
+from baselines.ddpg.noise import OrnsteinUhlenbeckActionNoise
+from multiprocessing.pool import Pool
+from osim.env.osim import L2RunEnv
+from baselines.ddpg.memory import Memory
 
 
 class EvaluationStatistics:
@@ -77,18 +81,25 @@ class EvaluationStatistics:
                                              name="critic_loss")
         self.tf_distance = tf.placeholder(tf.float32, (None,),
                                           name="distances")
-        self.tf_distance_mean, self.tf_distance_var = tf.nn.moments(self.tf_distance, axes=[0], name="distance_moments")
+        self.tf_distance_mean, self.tf_distance_var = tf.nn.moments(
+            self.tf_distance, axes=[0], name="distance_moments")
 
-        self.summary_dist_mean = tf.summary.scalar("Avreage reached distance", self.tf_distance_mean, family="distance")
-        self.summary_dist_var = tf.summary.scalar("Variance reached distance distance", self.tf_distance_var, family="distance")
-        self.summary_reward = tf.summary.scalar("Average reward", self.tf_rewards_mean)
-        self.summary_al = tf.summary.scalar("Actor loss", self.tf_actor_loss, family="losses")
-        self.summary_cl = tf.summary.scalar("Critic loss", self.tf_critic_loss, family="losses")
+        self.summary_dist_mean = tf.summary.scalar(
+            "Avreage reached distance", self.tf_distance_mean, family="distance")
+        self.summary_dist_var = tf.summary.scalar(
+            "Variance reached distance distance", self.tf_distance_var, family="distance")
+        self.summary_reward = tf.summary.scalar(
+            "Average reward", self.tf_rewards_mean)
+        self.summary_al = tf.summary.scalar(
+            "Actor loss", self.tf_actor_loss, family="losses")
+        self.summary_cl = tf.summary.scalar(
+            "Critic loss", self.tf_critic_loss, family="losses")
 
-def train(envs, nb_epochs, nb_episodes, episode_length, nb_train_steps, eval_freq, nb_eval_episodes, actor,
+
+def train(env, nb_epochs, nb_episodes, episode_length, nb_train_steps, eval_freq, nb_eval_episodes, actor,
           critic, memory, gamma, normalize_returns, normalize_observations,
           critic_l2_reg, actor_lr, critic_lr, action_noise, popart, clip_norm,
-          batch_size, reward_scale, action_repeat, tau=0.01):
+          batch_size, reward_scale, action_repeat, num_processes, tau=0.01):
     """
     Parameters
     ----------
@@ -117,53 +128,53 @@ def train(envs, nb_epochs, nb_episodes, episode_length, nb_train_steps, eval_fre
                  actor_lr=actor_lr, critic_lr=critic_lr, enable_popart=popart,
                  clip_norm=clip_norm, reward_scale=reward_scale)
 
-    # We need max_action because the NN output layer is a tanh.
-    # So we must scale it back.
-    max_action = envs[0].action_space.high
-
+    # Start training loop
     with U.single_threaded_session() as sess:
         agent.initialize(sess)
 
-        # Setup summary writer
+        # We need max_action because the NN output layer is a tanh.
+        # So we must scale it back.
+        max_action = env.action_space.high
+
+        # Build sampling workers args
+        mp_sampling_args = [MPSamplingArgs(actor,
+                                           critic,
+                                           episode_length,
+                                           action_repeat,
+                                           max_action,
+                                           None,
+                                           gamma,
+                                           tau,
+                                           normalize_returns,
+                                           batch_size,
+                                           normalize_observations,
+                                           critic_l2_reg,
+                                           actor_lr,
+                                           critic_lr,
+                                           popart,
+                                           clip_norm,
+                                           reward_scale)
+                            for i in range(num_processes)]
+
+    # Setup summary writer
         writer = _setup_tf_summary()
         writer.add_graph(sess.graph)
 
         stats = EvaluationStatistics(tf_session=sess, tf_writer=writer)
-        sess.graph.finalize()
+        #sess.graph.finalize()
 
         global_step = 0
         obs = env.reset()
         agent.reset()
         for epoch in range(nb_epochs):
             for episode in range(nb_episodes):
-                obs = env.reset()
-
-
-                # Generate trajectories
-                for t in range(episode_length):
-                    # Select action a_t according to current policy and
-                    # exploration noise
-
-                    a_t, _ = agent.pi(obs, apply_noise=True, compute_Q=False)
-                    assert a_t.shape == env.action_space.shape
-
-                    # the action has been chosen, need to repeat it for action_repeat
-                    # times
-                    for repeat_step in range(action_repeat):
-                        # Execute action a_t and observe reward r_t and next state s_{t+1}
-                        new_obs, r_t, done, info = env.step(max_action * a_t)
-
-                        # apply reward scaling
-                        r_t = r_t * reward_scale
-
-                        # Store transition in the replay buffer
-                        agent.store_transition(obs, a_t, r_t, new_obs, done)
-                        obs = new_obs
-
-                        if done:
-                            agent.reset()
-                            obs = env.reset()
-                            break  # End episode
+                # Dispatch transitions sampling job to workers
+                with Pool(processes=num_processes) as pool:
+                    mp_transitions = pool.map(mp_sampling, mp_sampling_args)
+                    for transitions in mp_transitions:
+                        for t in transitions:
+                            # t is a tuple (s_0, a_0, r_0, s_1, is_done)
+                            agent.store_transition(*t)
 
                 # Training phase
                 for t_train in range(nb_train_steps):
@@ -186,12 +197,14 @@ def train(envs, nb_epochs, nb_episodes, episode_length, nb_train_steps, eval_fre
 
                             # Select action a_t according to current policy and
                             # exploration noise
-                            a_t, _ = agent.pi(obs, apply_noise=False, compute_Q=False)
+                            a_t, _ = agent.pi(
+                                obs, apply_noise=False, compute_Q=False)
                             assert a_t.shape == env.action_space.shape
 
                             # Execute action a_t and observe reward r_t and next state s_{t+1}
                             start_step_time = time.time()
-                            obs, r_t, eval_done, info = env.step(max_action * a_t)
+                            obs, r_t, eval_done, info = env.step(
+                                max_action * a_t)
                             end_step_time = time.time()
                             step_time = end_step_time - start_step_time
                             stats.add_reward(r_t)
@@ -212,6 +225,103 @@ def train(envs, nb_epochs, nb_episodes, episode_length, nb_train_steps, eval_fre
                     # Plot average reward
                     stats.plot_reward(global_step)
                     stats.plot_distance(global_step)
+
+
+class MPSamplingArgs:
+    def __init__(self, actor, critic, episode_length, action_repeat, max_action, session,
+                 gamma,
+                 tau,
+                 normalize_returns,
+                 batch_size,
+                 normalize_observations,
+                 critic_l2_reg,
+                 actor_lr,
+                 critic_lr,
+                 popart,
+                 clip_norm,
+                 reward_scale):
+        self.actor = actor
+        self.critic = critic
+        self.episode_length = episode_length
+        self.action_repeat = action_repeat
+        self.max_action = max_action
+        self.session = session
+        self.gamma = gamma
+        self.tau = tau
+        self.normalize_returns = normalize_returns
+        self.batch_size = batch_size
+        self.normalize_observations = normalize_observations
+        self.critic_l2_reg = critic_l2_reg
+        self.actor_lr = actor_lr
+        self.critic_lr = critic_lr
+        self.popart = popart
+        self.clip_norm = clip_norm
+        self.reward_scale = reward_scale
+
+
+def mp_sampling(args):
+    # Unpack
+    actor = args.actor
+    critic = args.critic
+    sess = args.session
+    episode_length = args.episode_length
+    action_repeat = args.action_repeat
+    max_action = args.max_action
+    gamma = args.gamma
+    tau = args.tau
+    normalize_returns = args.normalize_returns
+    batch_size = args.batch_size
+    normalize_observations = args.normalize_observations
+    critic_l2_reg = args.critic_l2_reg
+    actor_lr = args.actor_lr
+    critic_lr = args.critic_lr
+    popart = args.popart
+    clip_norm = args.clip_norm
+    reward_scale = args.reward_scale
+
+    # Instantiate num_processes OU noise
+    env = L2RunEnv(visualize=False)
+    nb_actions = env.action_space.shape[-1]
+    noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(nb_actions),
+                                         sigma=np.ones(nb_actions))
+    memory = Memory(limit=int(1e6), action_shape=env.action_space.shape,
+                    observation_shape=env.observation_space.shape)
+    agent = DDPG(actor, critic, memory, env.observation_space.shape,
+                 env.action_space.shape, gamma=gamma, tau=tau,
+                 normalize_returns=normalize_returns,
+                 normalize_observations=normalize_observations,
+                 batch_size=batch_size, action_noise=noise,
+                 param_noise=None, critic_l2_reg=critic_l2_reg,
+                 actor_lr=actor_lr, critic_lr=critic_lr, enable_popart=popart,
+                 clip_norm=clip_norm, reward_scale=reward_scale)
+    agent.initialize(sess)
+
+    # Sampling logic
+    agent.reset()
+    obs = env.reset()
+    transitions = []
+    for t in range(episode_length):
+        # Select action a_t according to current policy and
+        # exploration noise
+
+        a_t, _ = agent.pi(obs, apply_noise=True, compute_Q=False)
+        assert a_t.shape == env.action_space.shape
+
+        # the action has been chosen, need to repeat it for action_repeat
+        # times
+        for _ in range(action_repeat):
+                        # Execute action a_t and observe reward r_t and next state s_{t+1}
+            new_obs, r_t, done, _ = env.step(max_action * a_t)
+
+            # Store transition in the replay buffer
+            transitions.append((obs, a_t, r_t, new_obs, done))
+            obs = new_obs
+
+            if done:
+                agent.reset()
+                obs = env.reset()
+                break  # End episode
+    return transitions
 
 
 def _setup_tf_summary():
