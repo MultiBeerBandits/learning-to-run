@@ -1,13 +1,8 @@
-Add logs: - distance OK
-
-Save net weights (every eval)
-
-Visualization script: restore net and apply policy
-
-Reward scaling OK
-
-Action repeat OK
-
-Observation transform frame: Move reference frame to the one of the pelvis
-
-Check network size
+Add logs: 
+- distance OK
+- Save net weights (every eval)
+- Visualization script: restore net and apply policy
+- Reward scaling OK
+- Action repeat OK
+- Observation transform frame: Move reference frame to the one of the pelvis
+- Check network size
