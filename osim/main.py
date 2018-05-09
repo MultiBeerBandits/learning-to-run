@@ -57,7 +57,7 @@ def run(seed, noise_type, layer_norm, evaluation, **kwargs):
     # Disable logging for rank != 0 to avoid noise.
     if rank == 0:
         start_time = time.time()
-    training.train(env=env, action_noise=action_noise,
+    training.train(envs=envs, action_noise=action_noise,
                    actor=actor, critic=critic, memory=memory, **kwargs)
     env.close()
     if eval_env is not None:

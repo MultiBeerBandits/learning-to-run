@@ -85,7 +85,7 @@ class EvaluationStatistics:
         self.summary_al = tf.summary.scalar("Actor loss", self.tf_actor_loss, family="losses")
         self.summary_cl = tf.summary.scalar("Critic loss", self.tf_critic_loss, family="losses")
 
-def train(env, nb_epochs, nb_episodes, episode_length, nb_train_steps, eval_freq, nb_eval_episodes, actor,
+def train(envs, nb_epochs, nb_episodes, episode_length, nb_train_steps, eval_freq, nb_eval_episodes, actor,
           critic, memory, gamma, normalize_returns, normalize_observations,
           critic_l2_reg, actor_lr, critic_lr, action_noise, popart, clip_norm,
           batch_size, reward_scale, action_repeat, reward_scale, tau=0.01):
@@ -119,7 +119,7 @@ def train(env, nb_epochs, nb_episodes, episode_length, nb_train_steps, eval_freq
 
     # We need max_action because the NN output layer is a tanh.
     # So we must scale it back.
-    max_action = env.action_space.high
+    max_action = envs[0].action_space.high
 
     with U.single_threaded_session() as sess:
         agent.initialize(sess)
@@ -137,7 +137,9 @@ def train(env, nb_epochs, nb_episodes, episode_length, nb_train_steps, eval_freq
         for epoch in range(nb_epochs):
             for episode in range(nb_episodes):
                 obs = env.reset()
-                # Generate a trajectory
+
+
+                # Generate trajectories
                 for t in range(episode_length):
                     # Select action a_t according to current policy and
                     # exploration noise
