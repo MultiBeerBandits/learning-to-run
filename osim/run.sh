@@ -1,9 +1,12 @@
 # Ask git the project root folder
 ROOT=`git rev-parse --show-toplevel`
 
-python ${ROOT}/osim/main.py --nb_epochs 10 \
-                            --nb_episodes 1000 \
-                            --episode_length 1000 \
-                            --nb_train_steps 50 \
-                            --eval_freq 1000 \
-                            --nb_eval_episodes 1
+python ${ROOT}/osim/main.py --batch-size 200 \
+							--nb-epochs 10 \
+                            --nb-episodes 1000 \
+                            --episode-length 1000 \
+                            --nb-train-steps 50 \
+                            --eval-freq 1 \
+                            --nb-eval-episodes 1 \
+                            --action-repeat 5 \
+                            --reward-scale 10

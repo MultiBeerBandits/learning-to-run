@@ -85,17 +85,20 @@ def parse_args():
     parser.add_argument('--reward-scale', type=float, default=1.)
     parser.add_argument('--clip-norm', type=float, default=None)
     # with default settings, perform 1M steps total
-    parser.add_argument('--nb_epochs', type=int, default=500)
-    parser.add_argument('--nb_episodes', type=int, default=20)
+    parser.add_argument('--nb-epochs', type=int, default=500)
+    parser.add_argument('--nb-episodes', type=int, default=20)
     # per epoch cycle and MPI worker
-    parser.add_argument('--nb_train_steps', type=int, default=50)
-    parser.add_argument('--nb_eval_episodes', type=int, default=5)
+    parser.add_argument('--nb-train-steps', type=int, default=50)
+    parser.add_argument('--nb-eval-episodes', type=int, default=5)
     # per epoch cycle and MPI worker
-    parser.add_argument('--episode_length', type=int, default=100)
-    parser.add_argument('--eval_freq', type=int, default=20)
+    parser.add_argument('--episode-length', type=int, default=100)
+    parser.add_argument('--eval-freq', type=int, default=20)
     # choices are adaptive-param_xx, ou_xx, normal_xx, none
     parser.add_argument('--noise-type', type=str, default='adaptive-param_0.2')
     parser.add_argument('--num-timesteps', type=int, default=None)
+    # DDPG improvements
+    parser.add_argument('--action-repeat', type=int, default=1)
+    parser.add_argument('--reward-scale', type=float, default=1.0)
     boolean_flag(parser, 'evaluation', default=False)
     args = parser.parse_args()
     # we don't directly specify timesteps for this script, so make sure that if we do specify them
@@ -110,7 +113,6 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
-    if MPI.COMM_WORLD.Get_rank() == 0:
-        logger.configure()
+    logger.configure()
     # Run actual script.
     run(**args)
