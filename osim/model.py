@@ -15,10 +15,10 @@ class Actor(Model):
             if reuse:
                 scope.reuse_variables()
             x = obs
-            x = tf.layers.dense(x, 5)
+            x = tf.layers.dense(x, 64)
             x = tf.nn.relu(x)
 
-            x = tf.layers.dense(x, 5)
+            x = tf.layers.dense(x, 64)
             x = tf.nn.relu(x)
 
             x = tf.layers.dense(x, self.nb_actions)
@@ -39,10 +39,10 @@ class Critic(Model):
                 scope.reuse_variables()
             print("obs shape : {}, action shape: {}".format(obs.shape, action.shape))
             x = tf.concat([obs, action], axis=-1)
-            x = tf.layers.dense(x, 5)
+            x = tf.layers.dense(x, 64)
             x = tf.nn.relu(x)
 
-            x = tf.layers.dense(x, 5)
+            x = tf.layers.dense(x, 64)
             x = tf.nn.relu(x)
 
             x = tf.layers.dense(x, 1)
