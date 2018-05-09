@@ -125,10 +125,11 @@ def train(env, nb_epochs, nb_episodes, episode_length, nb_train_steps, eval_freq
                 if episode % eval_freq == 0:
                     # Generate evaluation trajectories
                     for eval_episode in range(nb_eval_episodes):
+                        print("Evaluating episode {}...".format(eval_episode))
                         obs = env.reset()
                         for t in range(episode_length):
                             env.render()
-
+                            
                             # Select action a_t according to current policy and
                             # exploration noise
                             a_t, _ = agent.pi(obs, apply_noise=False, compute_Q=False)
@@ -139,6 +140,7 @@ def train(env, nb_epochs, nb_episodes, episode_length, nb_train_steps, eval_freq
                             stats.add_reward(r_t)
 
                             if eval_done:
+                                print("  Episode done!")
                                 obs = env.reset()
                                 break
 

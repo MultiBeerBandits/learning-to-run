@@ -99,3 +99,13 @@ ENV/
 
 # mypy
 .mypy_cache/
+
+# Logs
+*.log
+/tf_logs
+
+# Mujoco
+MUJOCO_LOG.TXT
+
+# VS CODE
+.vscode

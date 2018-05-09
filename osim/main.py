@@ -20,7 +20,7 @@ import tensorflow as tf
 from mpi4py import MPI
 
 
-def run(env_id, seed, noise_type, layer_norm, evaluation, **kwargs):
+def run(seed, noise_type, layer_norm, evaluation, **kwargs):
 
     param_noise = None
     # Configure things.
@@ -30,7 +30,7 @@ def run(env_id, seed, noise_type, layer_norm, evaluation, **kwargs):
 
 
     # Create envs.
-    env = L2RunEnv(visualize=True)
+    env = L2RunEnv(visualize=False)
     eval_env = None
 
     # Parse noise_type
