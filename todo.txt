@@ -11,3 +11,5 @@ Action repeat OK
 Observation transform frame: Move reference frame to the one of the pelvis
 
 Check network size
+
+Actions and states reflection symmetry OK
