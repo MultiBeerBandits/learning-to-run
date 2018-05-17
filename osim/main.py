@@ -12,7 +12,8 @@ from baselines.common.misc_util import (
 import training
 
 from model import Actor, Critic
-from baselines.ddpg.memory import Memory
+#from baselines.ddpg.memory import Memory
+from replay_buffer import ReplayBufferFlip
 from baselines.ddpg.noise import *
 
 from osim.env.osim import L2RunEnv
@@ -20,7 +21,7 @@ import tensorflow as tf
 from mpi4py import MPI
 
 
-def run(seed, noise_type, layer_norm, evaluation, **kwargs):
+def run(seed, noise_type, layer_norm, evaluation, flip_state, **kwargs):
 
     param_noise = None
     # Configure things.
@@ -31,6 +32,7 @@ def run(seed, noise_type, layer_norm, evaluation, **kwargs):
 
     # Create envs.
     env = L2RunEnv(visualize=False)
+    env.reset()
     eval_env = None
 
     # Parse noise_type
@@ -39,8 +41,9 @@ def run(seed, noise_type, layer_norm, evaluation, **kwargs):
         mu=np.zeros(nb_actions), sigma=np.ones(nb_actions))
 
     # Configure components.
-    memory = Memory(limit=int(1e6), action_shape=env.action_space.shape,
-                    observation_shape=env.observation_space.shape)
+    memory = ReplayBufferFlip(limit=int(1e6), action_shape=env.action_space.shape,
+                              observation_shape=env.observation_space.shape,
+                              flip_state=flip_state, state_description = env.get_state_desc())
     actor = Actor(nb_actions, layer_norm=layer_norm)
     critic = Critic(layer_norm=layer_norm)
 
@@ -98,6 +101,7 @@ def parse_args():
     parser.add_argument('--num-timesteps', type=int, default=None)
     # DDPG improvements
     parser.add_argument('--action-repeat', type=int, default=1)
+    boolean_flag(parser, 'flip-state', default=False)
     boolean_flag(parser, 'evaluation', default=False)
     args = parser.parse_args()
     # we don't directly specify timesteps for this script, so make sure that if we do specify them

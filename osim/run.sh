@@ -9,4 +9,5 @@ python ${ROOT}/osim/main.py --batch-size 200 \
                             --eval-freq 1 \
                             --nb-eval-episodes 1 \
                             --action-repeat 5 \
-                            --reward-scale 10
+                            --reward-scale 10 \
+                            --flip-state
