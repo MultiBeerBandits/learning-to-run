@@ -113,3 +113,10 @@ MUJOCO_LOG.TXT
 
 # Sublime
 *.sublime-workspace
+
+# MACOSX
+.DS_STORE
+
+# RUN
+**/run.sh*
+!**/run.sh.template
