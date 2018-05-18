@@ -105,6 +105,10 @@ ENV/
 /tf_logs
 */tf_logs
 
+# checkpoints
+**/tf_checkpoints
+**/tf_checkpoint
+
 # Mujoco
 MUJOCO_LOG.TXT
 

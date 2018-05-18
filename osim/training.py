@@ -11,6 +11,7 @@ from multiprocessing import Process, Queue, Event
 from osim.env.osim import L2RunEnv
 from baselines.ddpg.memory import Memory
 import os
+import os.path
 import time
 
 
@@ -100,7 +101,8 @@ class EvaluationStatistics:
             "Critic loss", self.tf_critic_loss, family="losses")
 
 
-def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train_steps, eval_freq, nb_eval_episodes, actor,
+def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train_steps,
+          eval_freq, save_freq, nb_eval_episodes, actor,
           critic, memory, gamma, normalize_returns, normalize_observations,
           critic_l2_reg, actor_lr, critic_lr, action_noise, popart, clip_norm,
           batch_size, reward_scale, action_repeat, num_processes, tau=0.01):
@@ -174,8 +176,12 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
         agent.initialize(sess)
 
         # Setup summary writer
-        writer = _setup_tf_summary()
+        logdir, checkpointdir = get_log_and_checkpoint_dirs()
+        writer = tf.summary.FileWriter(logdir)
         writer.add_graph(sess.graph)
+
+        # setup saver
+        saver = tf.train.Saver(max_to_keep=10, keep_checkpoint_every_n_hours=2)
 
         stats = EvaluationStatistics(tf_session=sess, tf_writer=writer)
         # sess.graph.finalize()
@@ -239,6 +245,10 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                                 print("  Episode done!")
                                 obs = env.reset()
                                 break
+
+                    if cycle % save_freq==0:
+                        save_path = saver.save(sess, checkpointdir)
+                        print("Model saved in path: %s" % save_path)
 
                     combined_stats = agent.get_stats().copy()
                     stats.fill_stats(combined_stats)
@@ -396,3 +406,16 @@ def _setup_tf_summary():
 
     writer = tf.summary.FileWriter(logdir)
     return writer
+
+def get_log_and_checkpoint_dirs():
+    import datetime
+
+    now = datetime.datetime.now()
+    logdir = "tf_logs/" + now.strftime("%Y%m%d-%H%M%S") + "/"
+    checkpointdir = "tf_checkpoints/"+ now.strftime("%Y%m%d-%H%M%S")
+    if not os.path.isdir(checkpointdir):
+        os.makedirs(checkpointdir)
+    checkpointfile = checkpointdir + "/model"
+    return logdir, checkpointfile
+
+

@@ -98,6 +98,8 @@ def parse_args():
     # per epoch cycle and MPI worker
     parser.add_argument('--episode-length', type=int, default=100)
     parser.add_argument('--eval-freq', type=int, default=20)
+    # save net weights each save-freq
+    parser.add_argument('--save-freq', type=int, default=20)
     # choices are adaptive-param_xx, ou_xx, normal_xx, none
     parser.add_argument('--noise-type', type=str, default='adaptive-param_0.2')
     parser.add_argument('--num-timesteps', type=int, default=None)
