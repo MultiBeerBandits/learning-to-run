@@ -175,9 +175,9 @@ def train(env, nb_epochs, nb_episodes, episode_length, nb_train_steps, eval_freq
         writer.add_graph(sess.graph)
 
         stats = EvaluationStatistics(tf_session=sess, tf_writer=writer)
-        sess.graph.finalize()
+        # sess.graph.finalize()
 
-        get_parameters = U.GetFlat(actor.trainable_vars())
+        get_parameters = U.GetFlat(actor.trainable_vars)
 
         global_step = 0
         obs = env.reset()
@@ -274,6 +274,8 @@ class SamplingWorker(Process):
                  event,
                  inputQ,
                  outputQ):
+        # Invoke parent constructor BEFORE doing anything!!
+        Process.__init__(self)
         self.actor = actor
         self.critic = critic
         self.episode_length = episode_length
@@ -300,8 +302,8 @@ class SamplingWorker(Process):
         env = L2RunEnv(visualize=False)
         nb_actions = env.action_space.shape[-1]
 
-        env.seed(time.time() + 1000000 * os.getpid())
-        set_global_seeds(time.time() + 1000000 * os.getpid())
+        env.seed(os.getpid())
+        set_global_seeds(os.getpid())
 
         # Create OU Noise
         noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(nb_actions),
@@ -328,7 +330,7 @@ class SamplingWorker(Process):
         # Start TF session
         with U.single_threaded_session() as sess:
             agent.initialize(sess)
-            set_parameters = U.SetFromFlat(self.actor.trainable_vars())
+            set_parameters = U.SetFromFlat(self.actor.trainable_vars)
             # Start sampling-worker loop.
             while True:
                 self.event.wait()  # Wait for a new message
