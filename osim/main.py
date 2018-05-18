@@ -29,8 +29,8 @@ def run(seed, noise_type, layer_norm, evaluation, flip_state, **kwargs):
     if rank != 0:
         logger.set_level(logger.DISABLED)
 
-
-    # Create envs.
+    
+    # Main env
     env = L2RunEnv(visualize=False)
     env.reset()
     eval_env = None
@@ -62,6 +62,7 @@ def run(seed, noise_type, layer_norm, evaluation, flip_state, **kwargs):
         start_time = time.time()
     training.train(env=env, action_noise=action_noise,
                    actor=actor, critic=critic, memory=memory, **kwargs)
+    
     env.close()
     if eval_env is not None:
         eval_env.close()
@@ -102,6 +103,7 @@ def parse_args():
     # DDPG improvements
     parser.add_argument('--action-repeat', type=int, default=1)
     boolean_flag(parser, 'flip-state', default=False)
+    parser.add_argument('--num-processes', type=int, default=1)
     boolean_flag(parser, 'evaluation', default=False)
     args = parser.parse_args()
     # we don't directly specify timesteps for this script, so make sure that if we do specify them

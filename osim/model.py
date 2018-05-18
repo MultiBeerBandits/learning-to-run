@@ -10,7 +10,7 @@ class Actor(Model):
 
     # obs is a TF placeholder with shape = env.observation shape
     def __call__(self, obs, reuse=False):
-        with tf.variable_scope(self.name) as scope:
+        with tf.variable_scope(self.name, reuse=tf.AUTO_REUSE) as scope:
 
             if reuse:
                 scope.reuse_variables()
@@ -34,7 +34,7 @@ class Critic(Model):
         self.layer_norm = layer_norm
 
     def __call__(self, obs, action, reuse=False):
-        with tf.variable_scope(self.name) as scope:
+        with tf.variable_scope(self.name, reuse=tf.AUTO_REUSE) as scope:
             if reuse:
                 scope.reuse_variables()
             print("obs shape : {}, action shape: {}".format(obs.shape, action.shape))
