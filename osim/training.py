@@ -2,12 +2,16 @@ import tensorflow as tf
 from baselines.ddpg.ddpg import DDPG
 from baselines import logger
 import baselines.common.tf_util as U
+from baselines.common import set_global_seeds
 import numpy as np
 import time
 from baselines.ddpg.noise import OrnsteinUhlenbeckActionNoise
 from multiprocessing.pool import Pool
+from multiprocessing import Process, Queue, Event
 from osim.env.osim import L2RunEnv
 from baselines.ddpg.memory import Memory
+import os
+import time
 
 
 class EvaluationStatistics:
@@ -128,53 +132,70 @@ def train(env, nb_epochs, nb_episodes, episode_length, nb_train_steps, eval_freq
                  actor_lr=actor_lr, critic_lr=critic_lr, enable_popart=popart,
                  clip_norm=clip_norm, reward_scale=reward_scale)
 
+    # We need max_action because the NN output layer is a tanh.
+    # So we must scale it back.
+    max_action = env.action_space.high
+
+    # Build Workers
+    events = [Event() for _ in range(num_processes)]
+    inputQs = [Queue() for _ in range(num_processes)]
+    outputQ = Queue()
+    # Split work among workers
+    episode_length_per_worker = episode_length // num_processes
+    workers = [SamplingWorker(actor,
+                              critic,
+                              episode_length_per_worker,
+                              action_repeat,
+                              max_action,
+                              gamma,
+                              tau,
+                              normalize_returns,
+                              batch_size,
+                              normalize_observations,
+                              critic_l2_reg,
+                              actor_lr,
+                              critic_lr,
+                              popart,
+                              clip_norm,
+                              reward_scale,
+                              events[i],
+                              inputQs[i],
+                              outputQ) for i in range(num_processes)]
+
+    # Run the Workers
+    for w in workers:
+        w.start()
+
     # Start training loop
     with U.single_threaded_session() as sess:
         agent.initialize(sess)
 
-        # We need max_action because the NN output layer is a tanh.
-        # So we must scale it back.
-        max_action = env.action_space.high
-
-        # Build sampling workers args
-        mp_sampling_args = [MPSamplingArgs(actor,
-                                           critic,
-                                           episode_length,
-                                           action_repeat,
-                                           max_action,
-                                           None,
-                                           gamma,
-                                           tau,
-                                           normalize_returns,
-                                           batch_size,
-                                           normalize_observations,
-                                           critic_l2_reg,
-                                           actor_lr,
-                                           critic_lr,
-                                           popart,
-                                           clip_norm,
-                                           reward_scale)
-                            for i in range(num_processes)]
-
-    # Setup summary writer
+        # Setup summary writer
         writer = _setup_tf_summary()
         writer.add_graph(sess.graph)
 
         stats = EvaluationStatistics(tf_session=sess, tf_writer=writer)
-        #sess.graph.finalize()
+        sess.graph.finalize()
+
+        get_parameters = U.GetFlat(actor.trainable_vars())
 
         global_step = 0
         obs = env.reset()
         agent.reset()
         for epoch in range(nb_epochs):
             for episode in range(nb_episodes):
-                # Dispatch transitions sampling job to workers
-                with Pool(processes=num_processes) as pool:
-                    mp_transitions = pool.map(mp_sampling, mp_sampling_args)
-                    for transitions in mp_transitions:
-                        for t in transitions:
-                            # t is a tuple (s_0, a_0, r_0, s_1, is_done)
-                            agent.store_transition(*t)
+                actor_ws = get_parameters()
+                # Run parallel sampling
+                for i in range(num_processes):
+                    inputQs[i].put(('sample', actor_ws))
+                    events[i].set()  # Notify worker: sample baby, sample!
+
+                # Collect results when ready
+                for i in range(num_processes):
+                    pid, transitions = outputQ.get()
+                    print('Collecting transition samples from Worker {}'.format(pid))
+                    for t in transitions:
+                        agent.store_transition(*t)
 
                 # Training phase
                 for t_train in range(nb_train_steps):
@@ -225,10 +246,20 @@ def train(env, nb_epochs, nb_episodes, episode_length, nb_train_steps, eval_freq
                     # Plot average reward
                     stats.plot_reward(global_step)
                     stats.plot_distance(global_step)
+        # Stop workers
+        for i in range(num_processes):
+            inputQs[i].put(('exit', None, None))
+            events[i].set()  # Notify worker: exit!
+        env.close()
 
 
-class MPSamplingArgs:
-    def __init__(self, actor, critic, episode_length, action_repeat, max_action, session,
+class SamplingWorker(Process):
+    def __init__(self,
+                 actor,
+                 critic,
+                 episode_length,
+                 action_repeat,
+                 max_action,
                  gamma,
                  tau,
                  normalize_returns,
@@ -239,13 +270,15 @@ class MPSamplingArgs:
                  critic_lr,
                  popart,
                  clip_norm,
-                 reward_scale):
+                 reward_scale,
+                 event,
+                 inputQ,
+                 outputQ):
         self.actor = actor
         self.critic = critic
         self.episode_length = episode_length
         self.action_repeat = action_repeat
         self.max_action = max_action
-        self.session = session
         self.gamma = gamma
         self.tau = tau
         self.normalize_returns = normalize_returns
@@ -257,71 +290,91 @@ class MPSamplingArgs:
         self.popart = popart
         self.clip_norm = clip_norm
         self.reward_scale = reward_scale
+        self.event = event
+        self.inputQ = inputQ
+        self.outputQ = outputQ
+
+    def run(self):
+        """Override Process.run()"""
+        # Create environment
+        env = L2RunEnv(visualize=False)
+        nb_actions = env.action_space.shape[-1]
+
+        env.seed(time.time() + 1000000 * os.getpid())
+        set_global_seeds(time.time() + 1000000 * os.getpid())
+
+        # Create OU Noise
+        noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(nb_actions),
+                                             sigma=np.ones(nb_actions))
+
+        # Allocate ReplayBuffer
+        memory = Memory(limit=int(1e6), action_shape=env.action_space.shape,
+                        observation_shape=env.observation_space.shape)
+
+        # Create DPPG agent
+        agent = DDPG(self.actor, self.critic, memory, env.observation_space.shape,
+                     env.action_space.shape, gamma=self.gamma, tau=self.tau,
+                     normalize_returns=self.normalize_returns,
+                     normalize_observations=self.normalize_observations,
+                     batch_size=self.batch_size, action_noise=noise,
+                     param_noise=None, critic_l2_reg=self.critic_l2_reg,
+                     actor_lr=self.actor_lr, critic_lr=self.critic_lr, enable_popart=self.popart,
+                     clip_norm=self.clip_norm, reward_scale=self.reward_scale)
+
+        # Build the sampling logic fn
+        sampling_fn = make_sampling_fn(
+            agent, env, self.episode_length, self.action_repeat, self.max_action)
+
+        # Start TF session
+        with U.single_threaded_session() as sess:
+            agent.initialize(sess)
+            set_parameters = U.SetFromFlat(self.actor.trainable_vars())
+            # Start sampling-worker loop.
+            while True:
+                self.event.wait()  # Wait for a new message
+                self.event.clear()  # Upon message receipt, mark as read
+                message, actor_ws = self.inputQ.get()  # Pop message
+                if message == 'sample':
+                    # Set weights
+                    set_parameters(actor_ws)
+                    # Do sampling
+                    transitions = sampling_fn()
+                    self.outputQ.put((os.getpid(), transitions))
+                elif message == 'exit':
+                    print('[Worker {}] Exiting...'.format(os.getpid()))
+                    env.close()
+                    break
 
 
-def mp_sampling(args):
-    # Unpack
-    actor = args.actor
-    critic = args.critic
-    sess = args.session
-    episode_length = args.episode_length
-    action_repeat = args.action_repeat
-    max_action = args.max_action
-    gamma = args.gamma
-    tau = args.tau
-    normalize_returns = args.normalize_returns
-    batch_size = args.batch_size
-    normalize_observations = args.normalize_observations
-    critic_l2_reg = args.critic_l2_reg
-    actor_lr = args.actor_lr
-    critic_lr = args.critic_lr
-    popart = args.popart
-    clip_norm = args.clip_norm
-    reward_scale = args.reward_scale
+def make_sampling_fn(agent, env, episode_length, action_repeat, max_action):
+    # Define the closure
+    def sampling_fn():
+        # Sampling logic
+        agent.reset()
+        obs = env.reset()
+        transitions = []
+        for t in range(episode_length):
+            # Select action a_t according to current policy and
+            # exploration noise
+            a_t, _ = agent.pi(obs, apply_noise=True, compute_Q=False)
+            assert a_t.shape == env.action_space.shape
 
-    # Instantiate num_processes OU noise
-    env = L2RunEnv(visualize=False)
-    nb_actions = env.action_space.shape[-1]
-    noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(nb_actions),
-                                         sigma=np.ones(nb_actions))
-    memory = Memory(limit=int(1e6), action_shape=env.action_space.shape,
-                    observation_shape=env.observation_space.shape)
-    agent = DDPG(actor, critic, memory, env.observation_space.shape,
-                 env.action_space.shape, gamma=gamma, tau=tau,
-                 normalize_returns=normalize_returns,
-                 normalize_observations=normalize_observations,
-                 batch_size=batch_size, action_noise=noise,
-                 param_noise=None, critic_l2_reg=critic_l2_reg,
-                 actor_lr=actor_lr, critic_lr=critic_lr, enable_popart=popart,
-                 clip_norm=clip_norm, reward_scale=reward_scale)
-    agent.initialize(sess)
+            # the action has been chosen, need to repeat it for action_repeat
+            # times
+            for _ in range(action_repeat):
+                # Execute action a_t and observe reward r_t and next state s_{t+1}
+                new_obs, r_t, done, _ = env.step(max_action * a_t)
 
-    # Sampling logic
-    agent.reset()
-    obs = env.reset()
-    transitions = []
-    for t in range(episode_length):
-        # Select action a_t according to current policy and
-        # exploration noise
+                # Store transition in the replay buffer
+                transitions.append((obs, a_t, r_t, new_obs, done))
+                obs = new_obs
 
-        a_t, _ = agent.pi(obs, apply_noise=True, compute_Q=False)
-        assert a_t.shape == env.action_space.shape
-
-        # the action has been chosen, need to repeat it for action_repeat
-        # times
-        for _ in range(action_repeat):
-                        # Execute action a_t and observe reward r_t and next state s_{t+1}
-            new_obs, r_t, done, _ = env.step(max_action * a_t)
-
-            # Store transition in the replay buffer
-            transitions.append((obs, a_t, r_t, new_obs, done))
-            obs = new_obs
-
-            if done:
-                agent.reset()
-                obs = env.reset()
-                break  # End episode
-    return transitions
+                if done:
+                    agent.reset()
+                    obs = env.reset()
+                    break  # End episode
+        return transitions
+    return sampling_fn
 
 
 def _setup_tf_summary():
