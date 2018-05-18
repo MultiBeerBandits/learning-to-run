@@ -100,7 +100,7 @@ class EvaluationStatistics:
             "Critic loss", self.tf_critic_loss, family="losses")
 
 
-def train(env, nb_epochs, nb_episodes, episode_length, nb_train_steps, eval_freq, nb_eval_episodes, actor,
+def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train_steps, eval_freq, nb_eval_episodes, actor,
           critic, memory, gamma, normalize_returns, normalize_observations,
           critic_l2_reg, actor_lr, critic_lr, action_noise, popart, clip_norm,
           batch_size, reward_scale, action_repeat, num_processes, tau=0.01):
@@ -121,6 +121,7 @@ def train(env, nb_epochs, nb_episodes, episode_length, nb_train_steps, eval_freq
     """
 
     assert action_repeat > 0
+    assert nb_episodes >= num_processes
 
     # Initialize DDPG agent (target network and replay buffer)
     agent = DDPG(actor, critic, memory, env.observation_space.shape,
@@ -141,10 +142,12 @@ def train(env, nb_epochs, nb_episodes, episode_length, nb_train_steps, eval_freq
     inputQs = [Queue() for _ in range(num_processes)]
     outputQ = Queue()
     # Split work among workers
-    episode_length_per_worker = episode_length // num_processes
+    nb_episodes_per_worker = nb_episodes // num_processes
+
     workers = [SamplingWorker(actor,
                               critic,
-                              episode_length_per_worker,
+                              episode_length,
+                              nb_episodes_per_worker,
                               action_repeat,
                               max_action,
                               gamma,
@@ -183,7 +186,7 @@ def train(env, nb_epochs, nb_episodes, episode_length, nb_train_steps, eval_freq
         obs = env.reset()
         agent.reset()
         for epoch in range(nb_epochs):
-            for episode in range(nb_episodes):
+            for cycle in range(nb_epoch_cycles):
                 actor_ws = get_parameters()
                 # Run parallel sampling
                 for i in range(num_processes):
@@ -208,7 +211,7 @@ def train(env, nb_epochs, nb_episodes, episode_length, nb_train_steps, eval_freq
                     global_step += 1
 
                 # Evaluation phase
-                if episode % eval_freq == 0:
+                if cycle % eval_freq == 0:
                     # Generate evaluation trajectories
                     for eval_episode in range(nb_eval_episodes):
                         print("Evaluating episode {}...".format(eval_episode))
@@ -248,7 +251,7 @@ def train(env, nb_epochs, nb_episodes, episode_length, nb_train_steps, eval_freq
                     stats.plot_distance(global_step)
         # Stop workers
         for i in range(num_processes):
-            inputQs[i].put(('exit', None, None))
+            inputQs[i].put(('exit', None))
             events[i].set()  # Notify worker: exit!
         env.close()
 
@@ -258,6 +261,7 @@ class SamplingWorker(Process):
                  actor,
                  critic,
                  episode_length,
+                 nb_episodes,
                  action_repeat,
                  max_action,
                  gamma,
@@ -279,6 +283,7 @@ class SamplingWorker(Process):
         self.actor = actor
         self.critic = critic
         self.episode_length = episode_length
+        self.nb_episodes = nb_episodes
         self.action_repeat = action_repeat
         self.max_action = max_action
         self.gamma = gamma
@@ -325,7 +330,7 @@ class SamplingWorker(Process):
 
         # Build the sampling logic fn
         sampling_fn = make_sampling_fn(
-            agent, env, self.episode_length, self.action_repeat, self.max_action)
+            agent, env, self.episode_length, self.action_repeat, self.max_action, self.nb_episodes)
 
         # Start TF session
         with U.single_threaded_session() as sess:
@@ -348,33 +353,37 @@ class SamplingWorker(Process):
                     break
 
 
-def make_sampling_fn(agent, env, episode_length, action_repeat, max_action):
+def make_sampling_fn(agent, env, episode_length, action_repeat, max_action, nb_episodes):
     # Define the closure
     def sampling_fn():
         # Sampling logic
         agent.reset()
         obs = env.reset()
         transitions = []
-        for t in range(episode_length):
-            # Select action a_t according to current policy and
-            # exploration noise
-            a_t, _ = agent.pi(obs, apply_noise=True, compute_Q=False)
-            assert a_t.shape == env.action_space.shape
+        for n in range(nb_episodes):
+            for t in range(episode_length):
+                # Select action a_t according to current policy and
+                # exploration noise
+                a_t, _ = agent.pi(obs, apply_noise=True, compute_Q=False)
+                assert a_t.shape == env.action_space.shape
 
-            # the action has been chosen, need to repeat it for action_repeat
-            # times
-            for _ in range(action_repeat):
-                # Execute action a_t and observe reward r_t and next state s_{t+1}
-                new_obs, r_t, done, _ = env.step(max_action * a_t)
+                # the action has been chosen, need to repeat it for action_repeat
+                # times
+                for _ in range(action_repeat):
+                    # Execute action a_t and observe reward r_t and next state s_{t+1}
+                    new_obs, r_t, done, _ = env.step(max_action * a_t)
 
-                # Store transition in the replay buffer
-                transitions.append((obs, a_t, r_t, new_obs, done))
-                obs = new_obs
+                    # Store transition in the replay buffer
+                    transitions.append((obs, a_t, r_t, new_obs, done))
+                    obs = new_obs
 
+                    if done:
+                        agent.reset()
+                        obs = env.reset()
+                        break  # End episode
+                
                 if done:
-                    agent.reset()
-                    obs = env.reset()
-                    break  # End episode
+                    break
         return transitions
     return sampling_fn
 

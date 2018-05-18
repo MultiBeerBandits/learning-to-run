@@ -90,6 +90,7 @@ def parse_args():
     parser.add_argument('--clip-norm', type=float, default=None)
     # with default settings, perform 1M steps total
     parser.add_argument('--nb-epochs', type=int, default=500)
+    parser.add_argument('--nb-epoch-cycles', type=int, default=1)
     parser.add_argument('--nb-episodes', type=int, default=20)
     # per epoch cycle and MPI worker
     parser.add_argument('--nb-train-steps', type=int, default=50)
