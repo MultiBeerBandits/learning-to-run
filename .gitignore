@@ -103,9 +103,13 @@ ENV/
 # Logs
 *.log
 /tf_logs
+*/tf_logs
 
 # Mujoco
 MUJOCO_LOG.TXT
 
 # VS CODE
 .vscode
+
+# Sublime
+*.sublime-workspace
