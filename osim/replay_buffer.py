@@ -12,13 +12,13 @@ class ReplayBufferFlip(Memory):
         self.action_space_size = action_shape[0]
 
     def sample(self, batch_size):
-        buff = super.sample(batch_size)
+        buff = super(ReplayBufferFlip, self).sample(batch_size)
         if self.flip_state:
-            buff['obs0'] = np.hstack((buff['obs0'], self.swap_states(buff['obs0'])))
-            buff['obs1'] = np.hstack((buff['obs1'], self.swap_states(buff['obs1'])))
-            buff['rewards'] = np.hstack((buff['rewards'], buff['rewards']))
-            buff['actions'] = np.hstack((buff['actions'], self.swap_actions(buff['actions'])))
-            buff['terminals1'] = np.hstack((buff['terminals1'], buff['terminals1']))
+            buff['obs0'] = np.vstack((buff['obs0'], self.swap_states(buff['obs0'])))
+            buff['obs1'] = np.vstack((buff['obs1'], self.swap_states(buff['obs1'])))
+            buff['rewards'] = np.vstack((buff['rewards'], buff['rewards']))
+            buff['actions'] = np.vstack((buff['actions'], self.swap_actions(buff['actions'])))
+            buff['terminals1'] = np.vstack((buff['terminals1'], buff['terminals1']))
         return buff
 
     def env_features_names(self):
