@@ -99,7 +99,7 @@ class DDPG(object):
 
         # Observation normalization.
         if self.normalize_observations:
-            with tf.variable_scope('obs_rms'):
+            with tf.variable_scope('obs_rms', reuse=tf.AUTO_REUSE):
                 self.obs_rms = RunningMeanStd(shape=observation_shape)
         else:
             self.obs_rms = None
@@ -110,7 +110,7 @@ class DDPG(object):
 
         # Return normalization.
         if self.normalize_returns:
-            with tf.variable_scope('ret_rms'):
+            with tf.variable_scope('ret_rms',  reuse=tf.AUTO_REUSE):
                 self.ret_rms = RunningMeanStd()
         else:
             self.ret_rms = None
