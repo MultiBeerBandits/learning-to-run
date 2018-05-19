@@ -7,3 +7,4 @@ Add logs:
 - Action repeat OK
 - Observation transform frame: Move reference frame to the one of the pelvis
 - Check network size
+- The batch_size in ReplayBuffer should be halved if flip_states is True
