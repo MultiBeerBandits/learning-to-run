@@ -16,7 +16,7 @@ from model import Actor, Critic
 from replay_buffer import ReplayBufferFlip
 from baselines.ddpg.noise import *
 
-from osim.env.osim import L2RunEnv
+from env_wrapper import create_environment
 import tensorflow as tf
 from mpi4py import MPI
 
@@ -31,7 +31,7 @@ def run(seed, noise_type, layer_norm, evaluation, flip_state, **kwargs):
 
     
     # Main env
-    env = L2RunEnv(visualize=False)
+    env = create_environment(**kwargs)
     env.reset()
     eval_env = None
 

@@ -8,7 +8,7 @@ import time
 from baselines.ddpg.noise import OrnsteinUhlenbeckActionNoise
 from multiprocessing.pool import Pool
 from multiprocessing import Process, Queue, Event
-from osim.env.osim import L2RunEnv
+from env_wrapper import create_environment
 from baselines.ddpg.memory import Memory
 import os
 import os.path
@@ -314,7 +314,7 @@ class SamplingWorker(Process):
     def run(self):
         """Override Process.run()"""
         # Create environment
-        env = L2RunEnv(visualize=False)
+        env = create_environment(self.action_repeat)
         nb_actions = env.action_space.shape[-1]
 
         env.seed(os.getpid())
@@ -379,21 +379,19 @@ def make_sampling_fn(agent, env, episode_length, action_repeat, max_action, nb_e
 
                 # the action has been chosen, need to repeat it for action_repeat
                 # times
-                for _ in range(action_repeat):
-                    # Execute action a_t and observe reward r_t and next state s_{t+1}
-                    new_obs, r_t, done, _ = env.step(max_action * a_t)
+                # Skip frames implemented in the environment wrapper
+                # Execute action a_t and observe reward r_t and next state s_{t+1}
+                new_obs, r_t, done, _ = env.step(max_action * a_t)
 
-                    # Store transition in the replay buffer
-                    transitions.append((obs, a_t, r_t, new_obs, done))
-                    obs = new_obs
+                # Store transition in the replay buffer
+                transitions.append((obs, a_t, r_t, new_obs, done))
+                obs = new_obs
 
-                    if done:
-                        agent.reset()
-                        obs = env.reset()
-                        break  # End episode
-                
                 if done:
-                    break
+                    agent.reset()
+                    obs = env.reset()
+                    break  # End episode
+                
         return transitions
     return sampling_fn
 
