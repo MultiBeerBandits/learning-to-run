@@ -7,3 +7,21 @@ Add logs:
 - Action repeat OK
 - Observation transform frame: Move reference frame to the one of the pelvis
 - Check network size
+
+Check skip frame implementation:
+def _step(self, action):
+        action = self.denormalise_action(action)
+        total_reward = 0.
+        for _ in range(self.skip_frames):
+            observation, reward, done, _ = self.env.step(action)
+            observation, obst_rew = self.state_transform.process(observation)
+            total_reward += reward + obst_rew
+            self.env_step += 1
+            if done:
+                if self.env_step < 1000:  # hardcoded
+                    total_reward += self.fail_reward
+                break
+
+        observation = self.observation(observation)
+        total_reward *= self.reward_scale
+        return observation, total_reward, done, None
