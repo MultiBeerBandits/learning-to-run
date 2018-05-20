@@ -412,7 +412,7 @@ def get_log_and_checkpoint_dirs(experiment_name):
 
     now = datetime.datetime.now()
     logdir = "tf_logs/" + experiment_name + "-" + now.strftime("%Y%m%d-%H%M%S") + "/"
-    checkpointdir = "tf_checkpoints/"+ experiment_name + "-" now.strftime("%Y%m%d-%H%M%S")
+    checkpointdir = "tf_checkpoints/"+ experiment_name + "-" + now.strftime("%Y%m%d-%H%M%S")
     if not os.path.isdir(checkpointdir):
         os.makedirs(checkpointdir)
     checkpointfile = checkpointdir + "/model"
