@@ -219,6 +219,7 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                 # Evaluation phase
                 if cycle % eval_freq == 0:
                     # Generate evaluation trajectories
+                    print("Cycle number: ", cycle+epoch*nb_epoch_cycles)
                     for eval_episode in range(nb_eval_episodes):
                         print("Evaluating episode {}...".format(eval_episode))
                         obs = env.reset()
