@@ -105,7 +105,7 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
           eval_freq, save_freq, nb_eval_episodes, actor,
           critic, memory, gamma, normalize_returns, normalize_observations,
           critic_l2_reg, actor_lr, critic_lr, action_noise, popart, clip_norm,
-          batch_size, reward_scale, action_repeat, num_processes, tau=0.01):
+          batch_size, reward_scale, action_repeat, num_processes, experiment_name, tau=0.01):
     """
     Parameters
     ----------
@@ -176,7 +176,7 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
         agent.initialize(sess)
 
         # Setup summary writer
-        logdir, checkpointdir = get_log_and_checkpoint_dirs()
+        logdir, checkpointdir = get_log_and_checkpoint_dirs(experiment_name)
         writer = tf.summary.FileWriter(logdir)
         writer.add_graph(sess.graph)
 
@@ -260,7 +260,7 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                 if cycle % save_freq==0:
                     save_path = saver.save(sess, checkpointdir)
                     print("Model saved in path: %s" % save_path)
-                    
+
         # Stop workers
         for i in range(num_processes):
             inputQs[i].put(('exit', None))
@@ -407,12 +407,12 @@ def _setup_tf_summary():
     writer = tf.summary.FileWriter(logdir)
     return writer
 
-def get_log_and_checkpoint_dirs():
+def get_log_and_checkpoint_dirs(experiment_name):
     import datetime
 
     now = datetime.datetime.now()
-    logdir = "tf_logs/" + now.strftime("%Y%m%d-%H%M%S") + "/"
-    checkpointdir = "tf_checkpoints/"+ now.strftime("%Y%m%d-%H%M%S")
+    logdir = "tf_logs/" + experiment_name + "-" + now.strftime("%Y%m%d-%H%M%S") + "/"
+    checkpointdir = "tf_checkpoints/"+ experiment_name + "-" now.strftime("%Y%m%d-%H%M%S")
     if not os.path.isdir(checkpointdir):
         os.makedirs(checkpointdir)
     checkpointfile = checkpointdir + "/model"
