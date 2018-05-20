@@ -25,3 +25,5 @@ def _step(self, action):
         observation = self.observation(observation)
         total_reward *= self.reward_scale
         return observation, total_reward, done, None
+
+- Add configuration file in log or checkpoint directory
