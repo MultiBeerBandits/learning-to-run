@@ -247,10 +247,6 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                                 obs = env.reset()
                                 break
 
-                    if cycle % save_freq==0:
-                        save_path = saver.save(sess, checkpointdir)
-                        print("Model saved in path: %s" % save_path)
-
                     combined_stats = agent.get_stats().copy()
                     stats.fill_stats(combined_stats)
                     for key in sorted(combined_stats.keys()):
@@ -260,6 +256,11 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                     # Plot average reward
                     stats.plot_reward(global_step)
                     stats.plot_distance(global_step)
+                
+                if cycle % save_freq==0:
+                    save_path = saver.save(sess, checkpointdir)
+                    print("Model saved in path: %s" % save_path)
+                    
         # Stop workers
         for i in range(num_processes):
             inputQs[i].put(('exit', None))
