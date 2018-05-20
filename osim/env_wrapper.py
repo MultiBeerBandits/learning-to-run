@@ -36,6 +36,9 @@ class L2RunEnvWrapper(gym.Wrapper):
         self.env.reset(**kwargs)
         return self.get_observation()
 
+    def seed(self, seed):
+        self.env.seed(seed)
+
     def step(self, action):
         total_reward = 0.
         for _ in range(self.action_repeat):
