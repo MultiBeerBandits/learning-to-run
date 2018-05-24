@@ -1,14 +1,41 @@
 # learning-to-run
-A project for the Deep Learning course held at Politecnico di Milano (A.Y. 2018)
+A project for the Deep Learning course held at Politecnico di Milano (A.Y. 2018).
+Implementation taken from Reason8 group.
 
 # Observation vector
-Values in the observation vector
-- y, vx, vy, ax, ay, rz, vrz, arz of pelvis (8 values)
+Values in the full observation vector
+- x, y, vx, vy, ax, ay, rz, vrz, arz of pelvis (8 values)
 - x, y, vx, vy, ax, ay, rz, vrz, arz of head, torso, toes_l, toes_r, talus_l, talus_r (9*6 values)
 - rz, vrz, arz of ankle_l, ankle_r, back, hip_l, hip_r, knee_l, knee_r (7*3 values)
 - activation, fiber_len, fiber_vel for all muscles (3*18)
-- x, y, vx, vy, ax, ay ofg center of mass (6)
+- x, y, vx, vy, ax, ay of center of mass (6)
 - 8 + 9*6 + 8*3 + 3*18 + 6 = 146
+
+Values in the basic observation vector:
+- x, y of pelvis (2 values)
+- x, y  of head, torso, toes_l, toes_r, talus_l, talus_r (2*6 values)
+- rz, vrz of ankle_l, ankle_r, hip_l, hip_r, knee_l, knee_r (2*6 values)
+- r, x, y, vr, vx, vy of ground pelvis (6)
+- x, y, vx, vy of center of mass (4)
+- 2 + 2*6 + 2*6 + 6 + 4 = 36
+
+State is centered with respect to the pelvis (x and y).
+It is possible to remove the pelvis from the observation vector by setting --exclude-centering-frame.
+
+Muscles strength is fixed to 1.
+
+No obstacles.
+
+# DDPG improvements
+- Parameter noise
+- Layer Normalization
+- State and action flip
+- State centered
+
+# Our Implementation
+- Parallel sampling
+- Linear decay for learning rates
+- 
 
 # Installation
 ```
@@ -49,15 +76,8 @@ python ${ROOT}/osim/main.py --batch-size 200 \
                             --num-processes 5 
 ```
 
-## Environment Wrapper
-Basic observation vector:
-41 dimensions: position and velocities
-
-Full observation vector:
-143 dimensions: positions, velocities and accelerations
-
 # Authors
 
-- Emiliano Gagliardi
 - Leonardo Arcari
+- Emiliano Gagliardi
 - Emanuele Ghelfi
