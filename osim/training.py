@@ -25,6 +25,7 @@ class EvaluationStatistics:
         self.critic_losses = []
         self.distances = []
         self.step_times = []
+        self.episode_lengths = []
         self.tf_session = tf_session
         self.tf_writer = tf_writer
 
@@ -69,13 +70,18 @@ class EvaluationStatistics:
 
     def add_step_time(self, step_time):
         self.step_times.append(step_time)
+    
+    def add_episode_length(self, episode_length):
+        self.episode_lengths.append(episode_length)
 
     def fill_stats(self, combined_stats):
         combined_stats['distances_mean'] = np.mean(self.distances)
         combined_stats['distances_var'] = np.var(self.distances)
         combined_stats['rewards_mean'] = np.mean(self.rewards)
         combined_stats['step_time'] = np.mean(self.step_times)
+        combined_stats['episode_length_mean'] = np.mean(self.episode_lengths)
         self.step_times.clear()
+        self.episode_lengths.clear()
 
     def _build_tf_graph(self):
         self.tf_rewards = tf.placeholder(tf.float32, (None,), name="rewards")
@@ -228,10 +234,8 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                         print("Evaluating episode {}...".format(eval_episode))
                         obs = env.reset()
                         for t in range(episode_length):
-                            env.render()
 
-                            # Select action a_t according to current policy and
-                            # exploration noise
+                            # Select action a_t without noise
                             a_t, _ = agent.pi(
                                 obs, apply_param_noise=False, apply_action_noise=False, compute_Q=False)
                             assert a_t.shape == env.action_space.shape
@@ -249,6 +253,7 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                             if eval_done:
                                 print("  Episode done!")
                                 obs = env.reset()
+                                stats.add_episode_length(t)
                                 break
 
                     combined_stats = agent.get_stats().copy()
