@@ -35,7 +35,6 @@ No obstacles.
 # Our Implementation
 - Parallel sampling
 - Linear decay for learning rates
-- 
 
 # Installation
 ```
