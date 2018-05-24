@@ -42,7 +42,7 @@ class Critic(Model):
             x = tf.layers.dense(x, 64)
             x = tf.nn.tanh(x)
 
-            x = tf.layers.dense(x, 64)
+            x = tf.layers.dense(x, 32)
             x = tf.nn.tanh(x)
 
             x = tf.layers.dense(x, 1)
