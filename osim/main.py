@@ -38,10 +38,10 @@ def run(seed, noise_type, layer_norm, evaluation, flip_state, **kwargs):
     # Parse noise_type
     nb_actions = env.action_space.shape[-1]
     action_noise = OrnsteinUhlenbeckActionNoise(
-        mu=np.zeros(nb_actions), sigma=np.ones(nb_actions))
+        mu=np.zeros(nb_actions), sigma=0.2*np.ones(nb_actions), theta=0.1)
 
     # Configure components.
-    memory = ReplayBufferFlip(int(1e6),
+    memory = ReplayBufferFlip(int(5e6),
                               flip_state, 
                               env.get_observation_names(),
                               env.action_space.shape,
@@ -84,8 +84,8 @@ def parse_args():
     parser.add_argument('--seed', help='RNG seed', type=int, default=0)
     parser.add_argument('--critic-l2-reg', type=float, default=1e-2)
     parser.add_argument('--batch-size', type=int, default=64)  # per MPI worker
-    parser.add_argument('--actor-lr', type=float, default=1e-4)
-    parser.add_argument('--critic-lr', type=float, default=1e-3)
+    # parser.add_argument('--actor-lr', type=float, default=1e-4)
+    # parser.add_argument('--critic-lr', type=float, default=1e-3)
     boolean_flag(parser, 'popart', default=False)
     parser.add_argument('--gamma', type=float, default=0.99)
     parser.add_argument('--reward-scale', type=float, default=1.)
