@@ -105,7 +105,8 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
           eval_freq, save_freq, nb_eval_episodes, actor,
           critic, memory, gamma, normalize_returns, normalize_observations,
           critic_l2_reg, actor_lr, critic_lr, action_noise, popart, clip_norm,
-          batch_size, reward_scale, action_repeat, num_processes, experiment_name, tau=0.01):
+          batch_size, reward_scale, action_repeat, full, exclude_centering_frame, fail_reward,
+          num_processes, experiment_name, tau=0.01):
     """
     Parameters
     ----------
@@ -165,7 +166,10 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                               reward_scale,
                               events[i],
                               inputQs[i],
-                              outputQ) for i in range(num_processes)]
+                              outputQ,
+                              full,
+                              exclude_centering_frame,
+                              fail_reward) for i in range(num_processes)]
 
     # Run the Workers
     for w in workers:
@@ -202,11 +206,12 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                 # Collect results when ready
                 for i in range(num_processes):
                     pid, transitions = outputQ.get()
-                    print('Collecting transition samples from Worker {}'.format(pid))
+                    print('Collecting transition samples from Worker {}/{}'.format(i, num_processes))
                     for t in transitions:
                         agent.store_transition(*t)
 
                 # Training phase
+                print("Starting traning phase . . .")
                 for t_train in range(nb_train_steps):
                     critic_loss, actor_loss = agent.train()
                     agent.update_target_net()
@@ -215,7 +220,7 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                     stats.add_critic_loss(critic_loss, global_step)
                     stats.add_actor_loss(actor_loss, global_step)
                     global_step += 1
-
+                print("End training phase")
                 # Evaluation phase
                 if cycle % eval_freq == 0:
                     # Generate evaluation trajectories
@@ -289,7 +294,11 @@ class SamplingWorker(Process):
                  reward_scale,
                  event,
                  inputQ,
-                 outputQ):
+                 outputQ,
+                 # environment wrapper parameters
+                 full, 
+                 exclude_centering_frame,
+                 fail_reward):
         # Invoke parent constructor BEFORE doing anything!!
         Process.__init__(self)
         self.actor = actor
@@ -312,11 +321,17 @@ class SamplingWorker(Process):
         self.event = event
         self.inputQ = inputQ
         self.outputQ = outputQ
+        self.full = full
+        self.exclude_centering_frame = exclude_centering_frame
+        self.fail_reward = fail_reward
 
     def run(self):
         """Override Process.run()"""
         # Create environment
-        env = create_environment(self.action_repeat)
+        env = create_environment(action_repeat = self.action_repeat,
+                                 full = self.full,
+                                 exclude_centering_frame = self.exclude_centering_frame,
+                                 fail_reward = self.fail_reward)
         nb_actions = env.action_space.shape[-1]
 
         env.seed(os.getpid())

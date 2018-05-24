@@ -41,9 +41,11 @@ def run(seed, noise_type, layer_norm, evaluation, flip_state, **kwargs):
         mu=np.zeros(nb_actions), sigma=np.ones(nb_actions))
 
     # Configure components.
-    memory = ReplayBufferFlip(limit=int(1e6), action_shape=env.action_space.shape,
-                              observation_shape=env.observation_space.shape,
-                              flip_state=flip_state, state_description = env.get_state_desc())
+    memory = ReplayBufferFlip(int(1e6),
+                              flip_state, 
+                              env.get_observation_names(),
+                              env.action_space.shape,
+                              env.observation_space.shape)
     actor = Actor(nb_actions, layer_norm=layer_norm)
     critic = Critic(layer_norm=layer_norm)
 
@@ -109,6 +111,10 @@ def parse_args():
     parser.add_argument('--num-processes', type=int, default=1)
     parser.add_argument('--experiment-name', type=str, default="")
     boolean_flag(parser, 'evaluation', default=False)
+    # environment wrapper args
+    boolean_flag(parser, 'full', default=False, help="use full observation")
+    boolean_flag(parser, 'exclude-centering-frame', default=False, help="exclude pelvis from observation vec")
+    parser.add_argument('--fail-reward', type=float, default=-0.2)
     args = parser.parse_args()
     # we don't directly specify timesteps for this script, so make sure that if we do specify them
     # they agree with the other parameters
