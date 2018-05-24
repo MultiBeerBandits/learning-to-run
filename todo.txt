@@ -8,6 +8,7 @@ Add logs:
 - Observation transform frame: Move reference frame to the one of the pelvis
 - Check network size
 - Understand what is --nb-train-step
+- Add initial, final learning rates in parser (if we want)
 
 Check skip frame implementation:
 def _step(self, action):
