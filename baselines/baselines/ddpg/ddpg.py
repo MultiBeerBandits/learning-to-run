@@ -10,6 +10,7 @@ from baselines.common.mpi_adam import MpiAdam
 import baselines.common.tf_util as U
 from baselines.common.mpi_running_mean_std import RunningMeanStd
 from mpi4py import MPI
+from baselines.common.schedules import LinearSchedule
 
 def normalize(x, stats):
     if stats is None:
@@ -65,7 +66,8 @@ class DDPG(object):
         gamma=0.99, tau=0.001, normalize_returns=False, enable_popart=False, normalize_observations=True,
         batch_size=128, observation_range=(-5., 5.), action_range=(-1., 1.), return_range=(-np.inf, np.inf),
         adaptive_param_noise=True, adaptive_param_noise_policy_threshold=.1,
-        critic_l2_reg=0., actor_lr=1e-4, critic_lr=1e-3, clip_norm=None, reward_scale=1.):
+        critic_l2_reg=0., initial_actor_lr=1e-3, initial_critic_lr=2e-3, final_actor_lr=5e-5,
+        final_critic_lr=5e-5, max_step_actor=10e6, max_step_critic=10e6, clip_norm=None, reward_scale=1.,):
         # Inputs.
         self.obs0 = tf.placeholder(tf.float32, shape=(None,) + observation_shape, name='obs0')
         self.obs1 = tf.placeholder(tf.float32, shape=(None,) + observation_shape, name='obs1')
@@ -88,14 +90,15 @@ class DDPG(object):
         self.observation_range = observation_range
         self.critic = critic
         self.actor = actor
-        self.actor_lr = actor_lr
-        self.critic_lr = critic_lr
         self.clip_norm = clip_norm
         self.enable_popart = enable_popart
         self.reward_scale = reward_scale
         self.batch_size = batch_size
         self.stats_sample = None
         self.critic_l2_reg = critic_l2_reg
+        self.training_step = 0
+        self.actor_scheduler = LinearSchedule(max_step_actor, final_actor_lr, initial_actor_lr)
+        self.critic_scheduler = LinearSchedule(max_step_critic, final_critic_lr, initial_critic_lr)
 
         # Observation normalization.
         if self.normalize_observations:
@@ -252,8 +255,8 @@ class DDPG(object):
         self.stats_ops = ops
         self.stats_names = names
 
-    def pi(self, obs, apply_noise=True, compute_Q=True):
-        if self.param_noise is not None and apply_noise:
+    def pi(self, obs, apply_param_noise=True, apply_action_noise=True, compute_Q=True):
+        if apply_param_noise:
             actor_tf = self.perturbed_actor_tf
         else:
             actor_tf = self.actor_tf
@@ -264,7 +267,7 @@ class DDPG(object):
             action = self.sess.run(actor_tf, feed_dict=feed_dict)
             q = None
         action = action.flatten()
-        if self.action_noise is not None and apply_noise:
+        if apply_action_noise:
             noise = self.action_noise()
             assert noise.shape == action.shape
             action += noise
@@ -278,6 +281,7 @@ class DDPG(object):
             self.obs_rms.update(np.array([obs0]))
 
     def train(self):
+        self.training_step += 1
         # Get a batch.
         batch = self.memory.sample(batch_size=self.batch_size)
 
@@ -316,8 +320,11 @@ class DDPG(object):
             self.actions: batch['actions'],
             self.critic_target: target_Q,
         })
-        self.actor_optimizer.update(actor_grads, stepsize=self.actor_lr)
-        self.critic_optimizer.update(critic_grads, stepsize=self.critic_lr)
+        # get learning rates
+        actor_lr = self.actor_scheduler.value(self.training_step)
+        critic_lr = self.critic_scheduler.value(self.training_step)
+        self.actor_optimizer.update(actor_grads, stepsize=actor_lr)
+        self.critic_optimizer.update(critic_grads, stepsize=critic_lr)
 
         return critic_loss, actor_loss
 
