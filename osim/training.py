@@ -10,6 +10,7 @@ from multiprocessing.pool import Pool
 from multiprocessing import Process, Queue, Event
 from env_wrapper import create_environment
 from baselines.ddpg.memory import Memory
+from baselines.ddpg.noise import *
 import os
 import os.path
 import time
@@ -104,7 +105,7 @@ class EvaluationStatistics:
 def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train_steps,
           eval_freq, save_freq, nb_eval_episodes, actor,
           critic, memory, gamma, normalize_returns, normalize_observations,
-          critic_l2_reg, actor_lr, critic_lr, action_noise, popart, clip_norm,
+          critic_l2_reg, action_noise, popart, clip_norm,
           batch_size, reward_scale, action_repeat, full, exclude_centering_frame, fail_reward,
           num_processes, experiment_name, tau=0.01):
     """
@@ -133,8 +134,8 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                  normalize_observations=normalize_observations,
                  batch_size=batch_size, action_noise=action_noise,
                  param_noise=None, critic_l2_reg=critic_l2_reg,
-                 actor_lr=actor_lr, critic_lr=critic_lr, enable_popart=popart,
-                 clip_norm=clip_norm, reward_scale=reward_scale)
+                 enable_popart=popart, clip_norm=clip_norm,
+                 reward_scale=reward_scale)
 
     # We need max_action because the NN output layer is a tanh.
     # So we must scale it back.
@@ -159,8 +160,6 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                               batch_size,
                               normalize_observations,
                               critic_l2_reg,
-                              actor_lr,
-                              critic_lr,
                               popart,
                               clip_norm,
                               reward_scale,
@@ -234,7 +233,7 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                             # Select action a_t according to current policy and
                             # exploration noise
                             a_t, _ = agent.pi(
-                                obs, apply_noise=False, compute_Q=False)
+                                obs, apply_param_noise=False, apply_action_noise=False, compute_Q=False)
                             assert a_t.shape == env.action_space.shape
 
                             # Execute action a_t and observe reward r_t and next state s_{t+1}
@@ -287,8 +286,6 @@ class SamplingWorker(Process):
                  batch_size,
                  normalize_observations,
                  critic_l2_reg,
-                 actor_lr,
-                 critic_lr,
                  popart,
                  clip_norm,
                  reward_scale,
@@ -298,7 +295,8 @@ class SamplingWorker(Process):
                  # environment wrapper parameters
                  full, 
                  exclude_centering_frame,
-                 fail_reward):
+                 fail_reward,
+                 action_noise_prob=0.7):
         # Invoke parent constructor BEFORE doing anything!!
         Process.__init__(self)
         self.actor = actor
@@ -313,8 +311,6 @@ class SamplingWorker(Process):
         self.batch_size = batch_size
         self.normalize_observations = normalize_observations
         self.critic_l2_reg = critic_l2_reg
-        self.actor_lr = actor_lr
-        self.critic_lr = critic_lr
         self.popart = popart
         self.clip_norm = clip_norm
         self.reward_scale = reward_scale
@@ -324,6 +320,7 @@ class SamplingWorker(Process):
         self.full = full
         self.exclude_centering_frame = exclude_centering_frame
         self.fail_reward = fail_reward
+        self.action_noise_prob = action_noise_prob
 
     def run(self):
         """Override Process.run()"""
@@ -338,8 +335,12 @@ class SamplingWorker(Process):
         set_global_seeds(os.getpid())
 
         # Create OU Noise
-        noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(nb_actions),
-                                             sigma=np.ones(nb_actions))
+        action_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(nb_actions),
+                                             sigma=0.2*np.ones(nb_actions),
+                                             theta=0.1)
+        
+        # Create Parameter Noise
+        param_noise = AdaptiveParamNoiseSpec(initial_stddev=0.2, desired_action_stddev=0.2)
 
         # Allocate ReplayBuffer
         memory = Memory(limit=int(1e6), action_shape=env.action_space.shape,
@@ -350,14 +351,14 @@ class SamplingWorker(Process):
                      env.action_space.shape, gamma=self.gamma, tau=self.tau,
                      normalize_returns=self.normalize_returns,
                      normalize_observations=self.normalize_observations,
-                     batch_size=self.batch_size, action_noise=noise,
-                     param_noise=None, critic_l2_reg=self.critic_l2_reg,
-                     actor_lr=self.actor_lr, critic_lr=self.critic_lr, enable_popart=self.popart,
-                     clip_norm=self.clip_norm, reward_scale=self.reward_scale)
+                     batch_size=self.batch_size, action_noise=action_noise,
+                     param_noise=param_noise, critic_l2_reg=self.critic_l2_reg,
+                     enable_popart=self.popart, clip_norm=self.clip_norm,
+                     reward_scale=self.reward_scale)
 
         # Build the sampling logic fn
         sampling_fn = make_sampling_fn(
-            agent, env, self.episode_length, self.action_repeat, self.max_action, self.nb_episodes)
+            agent, env, self.episode_length, self.action_repeat, self.max_action, self.nb_episodes, self.action_noise_prob)
 
         # Start TF session
         with U.single_threaded_session() as sess:
@@ -380,7 +381,7 @@ class SamplingWorker(Process):
                     break
 
 
-def make_sampling_fn(agent, env, episode_length, action_repeat, max_action, nb_episodes):
+def make_sampling_fn(agent, env, episode_length, action_repeat, max_action, nb_episodes, action_noise_prob):
     # Define the closure
     def sampling_fn():
         # Sampling logic
@@ -388,10 +389,14 @@ def make_sampling_fn(agent, env, episode_length, action_repeat, max_action, nb_e
         obs = env.reset()
         transitions = []
         for n in range(nb_episodes):
+            # draw a coin for selecting between param noise and action noise
+            apply_action_noise = np.random.uniform() < action_noise_prob
+            apply_param_noise = not apply_action_noise
             for t in range(episode_length):
                 # Select action a_t according to current policy and
                 # exploration noise
-                a_t, _ = agent.pi(obs, apply_noise=True, compute_Q=False)
+                a_t, _ = agent.pi(obs, apply_action_noise=apply_action_noise,
+                                  apply_param_noise=apply_param_noise, compute_Q=False)
                 assert a_t.shape == env.action_space.shape
 
                 # the action has been chosen, need to repeat it for action_repeat
