@@ -47,7 +47,8 @@ class L2RunEnvWrapper(gym.Wrapper):
     def step(self, action):
         total_reward = 0.
         for _ in range(self.action_repeat):
-            observation, reward, done, _ = self.env.step(action)
+            observation, _, done, _ = self.env.step(action)
+            reward = self.reward()
             observation = self.get_observation()
             total_reward += reward
             self.env_step += 1
@@ -164,9 +165,11 @@ class L2RunEnvWrapper(gym.Wrapper):
     def reward(self):
         state_desc = self.env.get_state_desc()
         prev_state_desc = self.env.get_prev_state_desc()
+        # velocity + small reward for each timestep
+        # TODO: maybe we can use joint_vel ground_pelvis
         if not prev_state_desc:
             return 0
-        return state_desc["joint_pos"]["ground_pelvis"][1] - prev_state_desc["joint_pos"]["ground_pelvis"][1]
+        return state_desc["joint_pos"]["ground_pelvis"][1] - prev_state_desc["joint_pos"]["ground_pelvis"][1] + 0.001
 
     # utility methods that can be used outside for implementing actions flip
     # returns all the names of the observation vector values in order
