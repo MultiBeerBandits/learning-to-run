@@ -80,7 +80,7 @@ def parse_args():
     boolean_flag(parser, 'layer-norm', default=True)
     #boolean_flag(parser, 'render', default=False)
     boolean_flag(parser, 'normalize-returns', default=False)
-    boolean_flag(parser, 'normalize-observations', default=True)
+    boolean_flag(parser, 'normalize-observations', default=False)
     parser.add_argument('--seed', help='RNG seed', type=int, default=0)
     parser.add_argument('--critic-l2-reg', type=float, default=1e-2)
     parser.add_argument('--batch-size', type=int, default=64)  # per MPI worker
@@ -128,6 +128,7 @@ def parse_args():
 
 if __name__ == '__main__':
     args = parse_args()
-    logger.configure()
+    print("Running with args: ", args)
+    logger.configure(dir="log")
     # Run actual script.
     run(**args)
