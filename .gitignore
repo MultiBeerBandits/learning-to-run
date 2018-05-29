@@ -124,3 +124,8 @@ MUJOCO_LOG.TXT
 # RUN
 **/run.sh*
 !**/run.sh.template
+**/test.sh*
+!**/test.sh.template
+
+# Videos
+python*/
