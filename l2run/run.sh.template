@@ -1,7 +1,7 @@
 # Ask git the project root folder
 ROOT=`git rev-parse --show-toplevel`
 
-python ${ROOT}/osim/main.py --batch-size 200 \
+python ${ROOT}/l2run/main.py train --batch-size 200 \
                             --nb-epochs 10000 \
                             --nb-epoch-cycles 1000 \
                             --nb-episodes 100 \

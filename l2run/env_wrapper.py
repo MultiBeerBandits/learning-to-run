@@ -6,11 +6,13 @@ from osim.env import L2RunEnv
 import os
 from osim.env.utils.mygym import convert_to_gym
 from itertools import product
+import opensim
+import math
 
 class L2RunEnvWrapper(gym.Wrapper):
 
     def __init__(self, env, full=False, action_repeat=5, fail_reward=-0.2, 
-                 exclude_centering_frame=False, **kwargs):
+                 exclude_centering_frame=False):
         """
         Initialize the environment:
         Parameters:
@@ -169,7 +171,15 @@ class L2RunEnvWrapper(gym.Wrapper):
         # TODO: maybe we can use joint_vel ground_pelvis
         if not prev_state_desc:
             return 0
-        return state_desc["joint_pos"]["ground_pelvis"][1] - prev_state_desc["joint_pos"]["ground_pelvis"][1] + 0.001
+        # Compute ligaments penalty
+        lig_pen = 0
+        # Get ligaments
+        for j in range(20, 26): 
+            lig = opensim.CoordinateLimitForce.safeDownCast(self.env.osim_model.forceSet.get(j))
+            lig_pen += lig.calcLimitForce(self.env.osim_model.state) ** 2
+        penalty = math.sqrt(lig_pen) * 10e-8
+        speed = state_desc["joint_pos"]["ground_pelvis"][1] - prev_state_desc["joint_pos"]["ground_pelvis"][1]
+        return speed - penalty + 0.001
 
     # utility methods that can be used outside for implementing actions flip
     # returns all the names of the observation vector values in order
@@ -192,7 +202,7 @@ class L2RunEnvWrapper(gym.Wrapper):
         assert len(names) == self.get_observation_space_size()
         return names
             
-def create_environment(**kwargs):
-    env = L2RunEnv(visualize=False)
-    env = L2RunEnvWrapper(env, **kwargs)
+def create_environment(visualize, full, action_repeat, fail_reward, exclude_centering_frame):
+    env = L2RunEnv(visualize=visualize)
+    env = L2RunEnvWrapper(env, full, action_repeat, fail_reward, exclude_centering_frame)
     return env

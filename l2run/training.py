@@ -112,8 +112,8 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
           eval_freq, save_freq, nb_eval_episodes, actor,
           critic, memory, gamma, normalize_returns, normalize_observations,
           critic_l2_reg, action_noise, popart, clip_norm,
-          batch_size, reward_scale, action_repeat, full, exclude_centering_frame, fail_reward,
-          num_processes, experiment_name, tau=0.01):
+          batch_size, reward_scale, action_repeat, full, exclude_centering_frame,
+          visualize, fail_reward, num_processes, experiment_name, tau=0.01):
     """
     Parameters
     ----------
@@ -174,6 +174,7 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                               outputQ,
                               full,
                               exclude_centering_frame,
+                              visualize, 
                               fail_reward) for i in range(num_processes)]
 
     # Run the Workers
@@ -300,6 +301,7 @@ class SamplingWorker(Process):
                  # environment wrapper parameters
                  full, 
                  exclude_centering_frame,
+                 visualize, 
                  fail_reward,
                  action_noise_prob=0.7):
         # Invoke parent constructor BEFORE doing anything!!
@@ -324,6 +326,7 @@ class SamplingWorker(Process):
         self.outputQ = outputQ
         self.full = full
         self.exclude_centering_frame = exclude_centering_frame
+        self.visualize = visualize
         self.fail_reward = fail_reward
         self.action_noise_prob = action_noise_prob
 
@@ -333,6 +336,7 @@ class SamplingWorker(Process):
         env = create_environment(action_repeat = self.action_repeat,
                                  full = self.full,
                                  exclude_centering_frame = self.exclude_centering_frame,
+                                 visualize = self.visualize,
                                  fail_reward = self.fail_reward)
         nb_actions = env.action_space.shape[-1]
 

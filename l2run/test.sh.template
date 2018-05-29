@@ -1,0 +1,13 @@
+# Ask git the project root folder
+ROOT=`git rev-parse --show-toplevel`
+
+python ${ROOT}/l2run/main.py test 
+                            --nb-episodes 100 \
+                            --episode-length 1000 \
+                            --seed 1234 \
+                            --action-repeat 5 \
+                            --reward-scale 10 \
+                            --checkpoint-dir "${ROOT}/tf_checkpoints/-20180526-163703" \
+                            --flip-state \
+                            --no-full \
+                            --no-exclude-centering-frame
