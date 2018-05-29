@@ -87,9 +87,12 @@ class L2RunEnvWrapper(gym.Wrapper):
         if not self.exclude_centering_frame:
             res += pelvis
 
-        for joint in ["hip_l","hip_r","knee_l","knee_r","ankle_l","ankle_r", "ground_pelvis"]:
+        for joint in ["hip_l","hip_r","knee_l","knee_r","ankle_l","ankle_r"]:
             res += state_desc["joint_pos"][joint]
             res += state_desc["joint_vel"][joint]
+        
+        res += state_desc["joint_pos"]["ground_pelvis"][0:1]
+        res += state_desc["joint_vel"]["ground_pelvis"][0:1]
 
         # center body parts poses in pelvis reference
         for body_part in ["head", "torso", "toes_l", "toes_r", "talus_l", "talus_r"]:
@@ -193,7 +196,7 @@ class L2RunEnvWrapper(gym.Wrapper):
         else:
             names = ["pelvis_x", "pelvis_y"]
             names += [joint + "_" + var for (joint, var) in product(["hip_left","hip_right","knee_left","knee_right","ankle_left","ankle_right"], ["rz", "vrz"])]
-            names += ["ground_pelvis_rot", "ground_pelvis_x", "ground_pelvis_y", "ground_pelvis_vel_rot", "ground_pelvis_vel_x", "ground_pelvis_vel_y"]
+            names += ["ground_pelvis_rot", "ground_pelvis_vel_rot"]
             names += [body_part + "_" + var for (body_part, var) in product(["head", "torso", "toes_left", "toes_right", "talus_left", "talus_right"], ["x", "y"])]
             names += ["com_x", "com_y", "com_vel_x", "com_vel_y"]
         # if exclude_centering_frame need to remove x and y of pelvis (first 2 el)
