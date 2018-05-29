@@ -75,6 +75,11 @@ python ${ROOT}/osim/main.py --batch-size 200 \
                             --num-processes 5 
 ```
 
+# Generate video from frames
+ ````
+ffmpeg -f image2 -framerate 25 -pattern_type sequence -start_number 1 -i "Frame%04d.png" -s 800x600 test.avi
+```
+
 # Authors
 
 - Leonardo Arcari
