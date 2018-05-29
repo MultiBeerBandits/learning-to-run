@@ -155,6 +155,8 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
     # Build Workers
     events = [Event() for _ in range(num_processes)]
     inputQs = [Queue() for _ in range(num_processes)]
+    testing_event = Event()
+    testing_Q = Queue()
     outputQ = Queue()
     # Split work among workers
     nb_episodes_per_worker = nb_episodes // num_processes
@@ -186,15 +188,46 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
     for w in workers:
         w.start()
 
+    # Create tester process
+    tester = TestingWorker(actor,
+                            critic,
+                            episode_length,
+                            nb_eval_episodes,
+                            action_repeat,
+                            max_action,
+                            gamma,
+                            tau,
+                            normalize_returns,
+                            batch_size,
+                            normalize_observations,
+                            critic_l2_reg,
+                            popart,
+                            clip_norm,
+                            reward_scale,
+                            testing_event,
+                            testing_Q,
+                            full,
+                            exclude_centering_frame,
+                            visualize,
+                            fail_reward,
+                            log_dir)
+
+    # Run the Tester
+    tester.start()
+
     # Start training loop
     with U.single_threaded_session() as sess:
         agent.initialize(sess)
         num_wait_processes = num_processes // 2
 
+        writer = tf.summary.FileWriter(log_dir)
+        writer.add_graph(sess.graph)
+
+        # Initialize writer and statistics
+        stats = EvaluationStatistics(tf_session=sess, tf_writer=writer)
+
         # setup saver
         saver = tf.train.Saver(max_to_keep=10, keep_checkpoint_every_n_hours=2)
-
-        # sess.graph.finalize()
 
         get_parameters = U.GetFlat(actor.trainable_vars)
 
@@ -228,46 +261,17 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                     stats.add_actor_loss(actor_loss, global_step)
                     global_step += 1
                 print("End training phase")
+                
                 # Evaluation phase
                 if cycle % eval_freq == 0:
                     # Generate evaluation trajectories
                     print("Cycle number: ", cycle+epoch*nb_epoch_cycles)
-                    for eval_episode in range(nb_eval_episodes):
-                        print("Evaluating episode {}...".format(eval_episode))
-                        obs = env.reset()
-                        for t in range(episode_length):
+                    print("Started testing worker")
+                    actor_ws = get_parameters()
+                    testing_Q.put(('test', actor_ws, global_step))
+                    testing_event.set()
 
-                            # Select action a_t without noise
-                            a_t, _ = agent.pi(
-                                obs, apply_param_noise=False, apply_action_noise=False, compute_Q=False)
-                            assert a_t.shape == env.action_space.shape
-
-                            # Execute action a_t and observe reward r_t and next state s_{t+1}
-                            start_step_time = time.time()
-                            obs, r_t, eval_done, info = env.step(
-                                max_action * a_t)
-                            end_step_time = time.time()
-                            step_time = end_step_time - start_step_time
-                            stats.add_reward(r_t)
-                            stats.add_distance(env)
-                            stats.add_step_time(step_time)
-
-                            if eval_done:
-                                print("  Episode done!")
-                                obs = env.reset()
-                                stats.add_episode_length(t)
-                                break
-
-                    combined_stats = agent.get_stats().copy()
-                    stats.fill_stats(combined_stats)
-                    for key in sorted(combined_stats.keys()):
-                        logger.record_tabular(key, combined_stats[key])
-                    logger.dump_tabular()
-                    logger.info('')
-                    # Plot average reward
-                    stats.plot_reward(global_step)
-                    stats.plot_distance(global_step)
-
+                # Save weights
                 if cycle % save_freq == 0:
                     save_path = saver.save(sess, checkpoint_dir)
                     print("Model saved in path: %s" % save_path)
@@ -452,3 +456,157 @@ def get_log_and_checkpoint_dirs(experiment_name):
         os.makedirs(checkpoint_dir)
     checkpointfile = checkpoint_dir + "/model"
     return log_dir, checkpointfile
+
+class TestingWorker(Process):
+    def __init__(self,
+                 actor,
+                 critic,
+                 episode_length,
+                 nb_episodes,
+                 action_repeat,
+                 max_action,
+                 gamma,
+                 tau,
+                 normalize_returns,
+                 batch_size,
+                 normalize_observations,
+                 critic_l2_reg,
+                 popart,
+                 clip_norm,
+                 reward_scale,
+                 event,
+                 inputQ,
+                 # environment wrapper parameters
+                 full,
+                 exclude_centering_frame,
+                 visualize,
+                 fail_reward,
+                 log_dir
+                 ):
+        # Invoke parent constructor BEFORE doing anything!!
+        Process.__init__(self)
+        self.actor = actor
+        self.critic = critic
+        self.episode_length = episode_length
+        self.nb_episodes = nb_episodes
+        self.action_repeat = action_repeat
+        self.max_action = max_action
+        self.gamma = gamma
+        self.tau = tau
+        self.normalize_returns = normalize_returns
+        self.batch_size = batch_size
+        self.normalize_observations = normalize_observations
+        self.critic_l2_reg = critic_l2_reg
+        self.popart = popart
+        self.clip_norm = clip_norm
+        self.reward_scale = reward_scale
+        self.event = event
+        self.inputQ = inputQ
+        self.full = full
+        self.exclude_centering_frame = exclude_centering_frame
+        self.visualize = visualize
+        self.fail_reward = fail_reward
+        self.log_dir = log_dir
+
+    def run(self):
+        """Override Process.run()"""
+        # Create environment
+        env = create_environment(action_repeat=self.action_repeat,
+                                 full=self.full,
+                                 exclude_centering_frame=self.exclude_centering_frame,
+                                 visualize=self.visualize,
+                                 fail_reward=self.fail_reward)
+        nb_actions = env.action_space.shape[-1]
+
+        env.seed(os.getpid())
+        set_global_seeds(os.getpid())
+
+        # Allocate ReplayBuffer
+        memory = Memory(limit=int(1e6), action_shape=env.action_space.shape,
+                        observation_shape=env.observation_space.shape)
+
+        # Create DPPG agent
+        agent = DDPG(self.actor, self.critic, memory, env.observation_space.shape,
+                     env.action_space.shape, gamma=self.gamma, tau=self.tau,
+                     normalize_returns=self.normalize_returns,
+                     normalize_observations=self.normalize_observations,
+                     batch_size=self.batch_size, action_noise=None,
+                     param_noise=None, critic_l2_reg=self.critic_l2_reg,
+                     enable_popart=self.popart, clip_norm=self.clip_norm,
+                     reward_scale=self.reward_scale)
+
+        # Build the testing logic fn
+        testing_fn = make_testing_fn(
+            agent, env, self.episode_length, self.action_repeat, self.max_action, self.nb_episodes)
+
+        # Start TF session
+        with U.single_threaded_session() as sess:
+            agent.initialize(sess)
+            set_parameters = U.SetFromFlat(self.actor.trainable_vars)
+
+            writer = tf.summary.FileWriter(self.log_dir)
+            writer.add_graph(sess.graph)
+
+            # Initialize writer and statistics
+            stats = EvaluationStatistics(tf_session=sess, tf_writer=writer)
+
+            # Start sampling-worker loop.
+            while True:
+                self.event.wait()  # Wait for a new message
+                self.event.clear()  # Upon message receipt, mark as read
+                message, actor_ws, global_step = self.inputQ.get()  # Pop message
+                if message == 'test':
+                    # Set weights
+                    set_parameters(actor_ws)
+                    # Do testing
+                    testing_fn(stats, global_step)
+                elif message == 'exit':
+                    print('[Worker {}] Exiting...'.format(os.getpid()))
+                    env.close()
+                    break
+
+def make_testing_fn(agent, env, episode_length, action_repeat, max_action, nb_episodes):
+    # Define the closure
+    def sampling_fn(stats, global_step):
+        # Sampling logic
+        agent.reset()
+        obs = env.reset()
+        transitions = []
+        obs = env.reset()
+        for n in range(nb_episodes):
+            for t in range(episode_length):
+                # Select action a_t without noise
+                a_t, _ = agent.pi(
+                    obs, apply_param_noise=False, apply_action_noise=False, compute_Q=False)
+                assert a_t.shape == env.action_space.shape
+
+                # Execute action a_t and observe reward r_t and next state s_{t+1}
+                start_step_time = time.time()
+                obs, r_t, eval_done, info = env.step(
+                    max_action * a_t)
+                end_step_time = time.time()
+                step_time = end_step_time - start_step_time
+                stats.add_reward(r_t)
+                stats.add_distance(env)
+                stats.add_step_time(step_time)
+
+                if eval_done:
+                    print("  Episode done!")
+                    obs = env.reset()
+                    stats.add_episode_length(t)
+                    break
+
+        combined_stats = agent.get_stats().copy()
+        stats.fill_stats(combined_stats)
+        for key in sorted(combined_stats.keys()):
+            logger.record_tabular(key, combined_stats[key])
+        logger.dump_tabular()
+        logger.info('')
+        # Plot average reward
+        stats.plot_reward(global_step)
+        stats.plot_distance(global_step)
+
+
+        return transitions
+    return sampling_fn
+
