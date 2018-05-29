@@ -15,4 +15,6 @@ python ${ROOT}/l2run/main.py train --batch-size 200 \
                             --flip-state \
                             --num-processes 20 \
                             --no-full \
-                            --no-exclude-centering-frame
+                            --no-exclude-centering-frame \
+                            --critic-l2-reg 0 \
+                            --tau 0.000001 \
