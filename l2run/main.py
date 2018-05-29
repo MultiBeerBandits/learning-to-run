@@ -198,6 +198,6 @@ if __name__ == '__main__':
     args = parser.parse_args()
     dict_args = vars(args)
     print("Running with args: ", dict_args)
-    logger.configure(dir="log")
+    logger.configure()
     # Run actual script.
     args.func(**dict_args)
