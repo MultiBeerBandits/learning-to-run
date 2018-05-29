@@ -29,7 +29,6 @@ def run(seed, noise_type, layer_norm, evaluation, flip_state, **kwargs):
     if rank != 0:
         logger.set_level(logger.DISABLED)
 
-    
     # Main env
     env = create_environment(**kwargs)
     env.reset()
@@ -42,7 +41,7 @@ def run(seed, noise_type, layer_norm, evaluation, flip_state, **kwargs):
 
     # Configure components.
     memory = ReplayBufferFlip(int(5e6),
-                              flip_state, 
+                              flip_state,
                               env.get_observation_names(),
                               env.action_space.shape,
                               env.observation_space.shape)
@@ -64,7 +63,7 @@ def run(seed, noise_type, layer_norm, evaluation, flip_state, **kwargs):
         start_time = time.time()
     training.train(env=env, action_noise=action_noise,
                    actor=actor, critic=critic, memory=memory, **kwargs)
-    
+
     env.close()
     if eval_env is not None:
         eval_env.close()
@@ -113,7 +112,8 @@ def parse_args():
     boolean_flag(parser, 'evaluation', default=False)
     # environment wrapper args
     boolean_flag(parser, 'full', default=False, help="use full observation")
-    boolean_flag(parser, 'exclude-centering-frame', default=False, help="exclude pelvis from observation vec")
+    boolean_flag(parser, 'exclude-centering-frame', default=False,
+                 help="exclude pelvis from observation vec")
     parser.add_argument('--fail-reward', type=float, default=-0.2)
     args = parser.parse_args()
     # we don't directly specify timesteps for this script, so make sure that if we do specify them
