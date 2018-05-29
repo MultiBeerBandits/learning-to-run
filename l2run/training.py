@@ -70,7 +70,7 @@ class EvaluationStatistics:
 
     def add_step_time(self, step_time):
         self.step_times.append(step_time)
-    
+
     def add_episode_length(self, episode_length):
         self.episode_lengths.append(episode_length)
 
@@ -174,7 +174,7 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                               outputQ,
                               full,
                               exclude_centering_frame,
-                              visualize, 
+                              visualize,
                               fail_reward) for i in range(num_processes)]
 
     # Run the Workers
@@ -184,6 +184,7 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
     # Start training loop
     with U.single_threaded_session() as sess:
         agent.initialize(sess)
+        num_wait_processes = num_processes // 2
 
         # Setup summary writer
         logdir, checkpointdir = get_log_and_checkpoint_dirs(experiment_name)
@@ -210,9 +211,10 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                     events[i].set()  # Notify worker: sample baby, sample!
 
                 # Collect results when ready
-                for i in range(num_processes):
+                for i in range(num_wait_processes):
                     pid, transitions = outputQ.get()
-                    print('Collecting transition samples from Worker {}/{}'.format(i+1, num_processes))
+                    print(
+                        'Collecting transition samples from Worker {}/{}'.format(i+1, num_wait_processes))
                     for t in transitions:
                         agent.store_transition(*t)
 
@@ -266,8 +268,8 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                     # Plot average reward
                     stats.plot_reward(global_step)
                     stats.plot_distance(global_step)
-                
-                if cycle % save_freq==0:
+
+                if cycle % save_freq == 0:
                     save_path = saver.save(sess, checkpointdir)
                     print("Model saved in path: %s" % save_path)
 
@@ -299,9 +301,9 @@ class SamplingWorker(Process):
                  inputQ,
                  outputQ,
                  # environment wrapper parameters
-                 full, 
+                 full,
                  exclude_centering_frame,
-                 visualize, 
+                 visualize,
                  fail_reward,
                  action_noise_prob=0.7):
         # Invoke parent constructor BEFORE doing anything!!
@@ -333,11 +335,11 @@ class SamplingWorker(Process):
     def run(self):
         """Override Process.run()"""
         # Create environment
-        env = create_environment(action_repeat = self.action_repeat,
-                                 full = self.full,
-                                 exclude_centering_frame = self.exclude_centering_frame,
-                                 visualize = self.visualize,
-                                 fail_reward = self.fail_reward)
+        env = create_environment(action_repeat=self.action_repeat,
+                                 full=self.full,
+                                 exclude_centering_frame=self.exclude_centering_frame,
+                                 visualize=self.visualize,
+                                 fail_reward=self.fail_reward)
         nb_actions = env.action_space.shape[-1]
 
         env.seed(os.getpid())
@@ -345,11 +347,13 @@ class SamplingWorker(Process):
 
         # Create OU Noise
         action_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(nb_actions),
-                                             sigma=0.2*np.ones(nb_actions),
-                                             theta=0.1)
-        
+                                                    sigma=0.2 *
+                                                    np.ones(nb_actions),
+                                                    theta=0.1)
+
         # Create Parameter Noise
-        param_noise = AdaptiveParamNoiseSpec(initial_stddev=0.2, desired_action_stddev=0.2)
+        param_noise = AdaptiveParamNoiseSpec(
+            initial_stddev=0.2, desired_action_stddev=0.2)
 
         # Allocate ReplayBuffer
         memory = Memory(limit=int(1e6), action_shape=env.action_space.shape,
@@ -422,7 +426,7 @@ def make_sampling_fn(agent, env, episode_length, action_repeat, max_action, nb_e
                     agent.reset()
                     obs = env.reset()
                     break  # End episode
-                
+
         return transitions
     return sampling_fn
 
@@ -436,15 +440,16 @@ def _setup_tf_summary():
     writer = tf.summary.FileWriter(logdir)
     return writer
 
+
 def get_log_and_checkpoint_dirs(experiment_name):
     import datetime
 
     now = datetime.datetime.now()
-    logdir = "tf_logs/" + experiment_name + "-" + now.strftime("%Y%m%d-%H%M%S") + "/"
-    checkpointdir = "tf_checkpoints/"+ experiment_name + "-" + now.strftime("%Y%m%d-%H%M%S")
+    logdir = "tf_logs/" + experiment_name + \
+        "-" + now.strftime("%Y%m%d-%H%M%S") + "/"
+    checkpointdir = "tf_checkpoints/" + experiment_name + \
+        "-" + now.strftime("%Y%m%d-%H%M%S")
     if not os.path.isdir(checkpointdir):
         os.makedirs(checkpointdir)
     checkpointfile = checkpointdir + "/model"
     return logdir, checkpointfile
-
-
