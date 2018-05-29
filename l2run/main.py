@@ -136,6 +136,7 @@ def build_train_args(sub_parsers):
     # parser.add_argument('--critic-lr', type=float, default=1e-3)
     boolean_flag(parser, 'popart', default=False)
     parser.add_argument('--gamma', type=float, default=0.99)
+    parser.add_argument('--tau', type=float, default=0.001)
     parser.add_argument('--reward-scale', type=float, default=1.)
     parser.add_argument('--clip-norm', type=float, default=None)
     # with default settings, perform 1M steps total
