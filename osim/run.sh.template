@@ -2,14 +2,17 @@
 ROOT=`git rev-parse --show-toplevel`
 
 python ${ROOT}/osim/main.py --batch-size 200 \
-							--nb-epochs 10 \
-                            --nb-episodes 5 \
+                            --nb-epochs 10000 \
+                            --nb-epoch-cycles 1000 \
+                            --nb-episodes 100 \
                             --episode-length 1000 \
                             --nb-train-steps 50 \
-                            --eval-freq 1 \
-                            --save-freq 1 \
-                            --nb-eval-episodes 1 \
+                            --eval-freq 50 \
+                            --save-freq 100 \
+                            --nb-eval-episodes 10 \
                             --action-repeat 5 \
                             --reward-scale 10 \
                             --flip-state \
-                            --num-processes 5 
+                            --num-processes 20 \
+                            --no-full \
+                            --no-exclude-centering-frame

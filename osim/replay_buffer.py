@@ -1,5 +1,4 @@
 from baselines.ddpg.memory import Memory
-from itertools import product
 import numpy as np
 
 
@@ -18,7 +17,7 @@ class ReplayBufferFlip(Memory):
         self.action_space_size = action_shape[0]
 
     def sample(self, batch_size):
-        buff = super(ReplayBufferFlip, self).sample(batch_size)
+        buff = super(ReplayBufferFlip, self).sample(batch_size//2)
         if self.flip_state:
             buff['obs0'] = np.vstack(
                 (buff['obs0'], self.swap_states(buff['obs0'])))
