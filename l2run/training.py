@@ -113,7 +113,7 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
           critic, memory, gamma, normalize_returns, normalize_observations,
           critic_l2_reg, action_noise, popart, clip_norm,
           batch_size, reward_scale, action_repeat, full, exclude_centering_frame,
-          visualize, fail_reward, num_processes, experiment_name, tau=0.01):
+          visualize, fail_reward, num_processes, experiment_name, learning_session, tau=0.01):
     """
     Parameters
     ----------
@@ -133,6 +133,11 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
     assert action_repeat > 0
     assert nb_episodes >= num_processes
 
+    # Get params from learning session
+    checkpoint_dir = learning_session.checkpoint_dir
+    log_dir = learning_session.log_dir
+    training_step = learning_session.last_training_step
+
     # Initialize DDPG agent (target network and replay buffer)
     agent = DDPG(actor, critic, memory, env.observation_space.shape,
                  env.action_space.shape, gamma=gamma, tau=tau,
@@ -141,7 +146,7 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                  batch_size=batch_size, action_noise=action_noise,
                  param_noise=None, critic_l2_reg=critic_l2_reg,
                  enable_popart=popart, clip_norm=clip_norm,
-                 reward_scale=reward_scale)
+                 reward_scale=reward_scale, training_step=training_step)
 
     # We need max_action because the NN output layer is a tanh.
     # So we must scale it back.
@@ -186,15 +191,9 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
         agent.initialize(sess)
         num_wait_processes = num_processes // 2
 
-        # Setup summary writer
-        logdir, checkpointdir = get_log_and_checkpoint_dirs(experiment_name)
-        writer = tf.summary.FileWriter(logdir)
-        writer.add_graph(sess.graph)
-
         # setup saver
         saver = tf.train.Saver(max_to_keep=10, keep_checkpoint_every_n_hours=2)
 
-        stats = EvaluationStatistics(tf_session=sess, tf_writer=writer)
         # sess.graph.finalize()
 
         get_parameters = U.GetFlat(actor.trainable_vars)
@@ -270,7 +269,7 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                     stats.plot_distance(global_step)
 
                 if cycle % save_freq == 0:
-                    save_path = saver.save(sess, checkpointdir)
+                    save_path = saver.save(sess, checkpoint_dir)
                     print("Model saved in path: %s" % save_path)
 
         # Stop workers
@@ -435,9 +434,9 @@ def _setup_tf_summary():
     import datetime
 
     now = datetime.datetime.now()
-    logdir = "tf_logs/" + now.strftime("%Y%m%d-%H%M%S") + "/"
+    log_dir = "tf_logs/" + now.strftime("%Y%m%d-%H%M%S") + "/"
 
-    writer = tf.summary.FileWriter(logdir)
+    writer = tf.summary.FileWriter(log_dir)
     return writer
 
 
@@ -445,11 +444,11 @@ def get_log_and_checkpoint_dirs(experiment_name):
     import datetime
 
     now = datetime.datetime.now()
-    logdir = "tf_logs/" + experiment_name + \
+    log_dir = "tf_logs/" + experiment_name + \
         "-" + now.strftime("%Y%m%d-%H%M%S") + "/"
-    checkpointdir = "tf_checkpoints/" + experiment_name + \
+    checkpoint_dir = "tf_checkpoints/" + experiment_name + \
         "-" + now.strftime("%Y%m%d-%H%M%S")
-    if not os.path.isdir(checkpointdir):
-        os.makedirs(checkpointdir)
-    checkpointfile = checkpointdir + "/model"
-    return logdir, checkpointfile
+    if not os.path.isdir(checkpoint_dir):
+        os.makedirs(checkpoint_dir)
+    checkpointfile = checkpoint_dir + "/model"
+    return log_dir, checkpointfile
