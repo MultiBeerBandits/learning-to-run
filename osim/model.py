@@ -1,5 +1,6 @@
 from baselines.ddpg.models import Model
 import tensorflow as tf
+import tensorflow.contrib as tc
 
 # The net output is the action vector
 class Actor(Model):
@@ -16,10 +17,14 @@ class Actor(Model):
                 scope.reuse_variables()
             x = obs
             x = tf.layers.dense(x, 64)
-            x = tf.nn.relu(x)
+            if self.layer_norm:
+                x = tc.layers.layer_norm(x, center=True, scale=True)
+            x = tf.nn.elu(x)
 
             x = tf.layers.dense(x, 64)
-            x = tf.nn.relu(x)
+            if self.layer_norm:
+                x = tc.layers.layer_norm(x, center=True, scale=True)
+            x = tf.nn.elu(x)
 
             x = tf.layers.dense(x, self.nb_actions)
 
@@ -40,10 +45,14 @@ class Critic(Model):
             print("obs shape : {}, action shape: {}".format(obs.shape, action.shape))
             x = tf.concat([obs, action], axis=-1)
             x = tf.layers.dense(x, 64)
-            x = tf.nn.relu(x)
+            if self.layer_norm:
+                x = tc.layers.layer_norm(x, center=True, scale=True)
+            x = tf.nn.tanh(x)
 
-            x = tf.layers.dense(x, 64)
-            x = tf.nn.relu(x)
+            x = tf.layers.dense(x, 32)
+            if self.layer_norm:
+                x = tc.layers.layer_norm(x, center=True, scale=True)
+            x = tf.nn.tanh(x)
 
             x = tf.layers.dense(x, 1)
             # We do not introduce any non-linear transformation we want

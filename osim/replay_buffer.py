@@ -1,18 +1,18 @@
 from baselines.ddpg.memory import Memory
-from itertools import product
 import numpy as np
 
 class ReplayBufferFlip(Memory):
 
-    def __init__(self, limit, action_shape, observation_shape, flip_state, state_description):
-        super(ReplayBufferFlip, self).__init__(limit, action_shape, observation_shape)
+    def __init__(self, limit, flip_state, obs_vector_names, action_shape, obs_shape):
+        super(ReplayBufferFlip, self).__init__(limit, action_shape, obs_shape)
         self.flip_state = flip_state
-        self.left_idx = self.get_idx(state_description, "_left")
-        self.right_idx = self.get_idx(state_description, "_right")
+        self.obs_vector_names = obs_vector_names
+        self.left_idx = self.get_idx("_left")
+        self.right_idx = self.get_idx("_right")
         self.action_space_size = action_shape[0]
 
     def sample(self, batch_size):
-        buff = super(ReplayBufferFlip, self).sample(batch_size)
+        buff = super(ReplayBufferFlip, self).sample(batch_size//2)
         if self.flip_state:
             buff['obs0'] = np.vstack((buff['obs0'], self.swap_states(buff['obs0'])))
             buff['obs1'] = np.vstack((buff['obs1'], self.swap_states(buff['obs1'])))
@@ -21,16 +21,9 @@ class ReplayBufferFlip(Memory):
             buff['terminals1'] = np.vstack((buff['terminals1'], buff['terminals1']))
         return buff
 
-    def env_features_names(self):
-        names = ['pelvis_' + var for var in ['y', 'vx', 'vy', 'ax', 'ay', 'rz', 'vrz', 'arz']]
-        names += [body_part + "_" + var for (body_part, var) in product(['head', 'torso', 'toes_left', 'toes_right', 'talus_left', 'talus_right'], ['x', 'y', 'vx', 'vy', 'ax', 'ay', 'rz', 'vrz', 'arz'])]
-        names += [body_part + "_" + var for (body_part, var) in product(['ankle_left', 'ankle_right', 'back', 'hip_left', 'hip_right', 'knee_left', 'knee_right'], ['rz', 'vrz', 'arz'])]
-        names += ['center_of_mass' + var for var in ['x', 'y', 'vx', 'vy', 'ax', 'ay', 'ofg']]
-        return names
-
-    def  get_idx(self, desc, side):
-        names = self.env_features_names()
-        idx = [i for i, el in enumerate(names) if side in el]
+    def  get_idx(self, side):
+        # get the idx of names that contains side ("left" od "right")
+        idx = [i for i, el in enumerate(self.obs_vector_names) if side in el]
         return idx
 
     def swap_states(self, states):
