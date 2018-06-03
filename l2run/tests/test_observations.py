@@ -1,7 +1,9 @@
+import sys
+sys.path.append("..")
 from env_wrapper import create_environment
+from replay_buffer import ReplayBufferFlip
 import numpy as np
 from numpy.testing import assert_almost_equal
-from replay_buffer import ReplayBufferFlip
 
 """
 elements of the observation vector in order
@@ -12,7 +14,8 @@ names = ["pelvis_x", "pelvis_y"] 2
             names += [body_part + "_" + var for (body_part, var) in product(
                 ["head", "torso", "toes_left", "toes_right", "talus_left", "talus_right"],
                 ["x", "y"])] 12
-            names += ["com_x", "com_y", "com_vel_x", "com_vel_y"]
+            names += ["com_x", "com_y", "com_vel_x", "com_vel_y"] 4
+            names += ["pelvis_vel_x", "pelvis_vel_y"] 2
 """
 
 # test the base observation vector consistency
@@ -81,6 +84,10 @@ def obs_vector_consistency():
         assert_almost_equal(com_vel[0], obs[30])
         assert_almost_equal(com_vel[1], obs[31])
 
+        # check pelvis speed
+        assert_almost_equal(desc['body_vel']['pelvis'][0], obs[32])
+        assert_almost_equal(desc['body_vel']['pelvis'][1], obs[33])
+
 
 def test_state_flip():
     env = create_environment(False, False, 1, 0, False)
@@ -91,7 +98,7 @@ def test_state_flip():
     for _ in range(100):
         obs = env.step(env.action_space.sample())[0]
         fobs = b.swap_states(np.matrix(obs)).tolist()[0]
-        assert(len(obs) == 32)
+        assert(len(obs) == 34)
         assert(len(obs) == len(fobs))
         # pelvis does not change
         assert_almost_equal(obs[0:2], fobs[0:2])
@@ -114,6 +121,8 @@ def test_state_flip():
         assert_almost_equal(obs[26:28], fobs[24:26])
         # center of mass does not change
         assert_almost_equal(obs[28:32], fobs[28:32])
+        # pelvis speed does not change
+        assert_almost_equal(obs[32:34], fobs[32:34])
 
 # we discovered that ['body_pos']['pelvis'][0:2] == ['joint_pos']['ground_pelvis'][1:3]
 # and ['body_vel']['pelvis'][0:2] == ['joint_vel']['ground_pelvis'][1:3]
