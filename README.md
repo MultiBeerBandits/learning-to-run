@@ -15,9 +15,10 @@ Values in the basic observation vector:
 - x, y of pelvis (2 values)
 - x, y  of head, torso, toes_l, toes_r, talus_l, talus_r (2*6 values)
 - rz, vrz of ankle_l, ankle_r, hip_l, hip_r, knee_l, knee_r (2*6 values)
-- r, x, y, vr, vx, vy of ground pelvis (6)
+- r, vr of ground pelvis (2)
 - x, y, vx, vy of center of mass (4)
-- 2 + 2*6 + 2*6 + 6 + 4 = 36
+- vx, vy of pelvis (2)
+- 2 + 2*6 + 2*6 + 2 + 4 + 2 = 34
 
 State is centered with respect to the pelvis (x and y).
 It is possible to remove the pelvis from the observation vector by setting --exclude-centering-frame.
