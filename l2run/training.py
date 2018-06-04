@@ -8,6 +8,7 @@ import time
 from baselines.ddpg.noise import OrnsteinUhlenbeckActionNoise
 from multiprocessing.pool import Pool
 from multiprocessing import Process, Queue, Event
+import queue
 from env_wrapper import create_environment
 from baselines.ddpg.memory import Memory
 from baselines.ddpg.noise import *
@@ -32,6 +33,9 @@ class EvaluationStatistics:
     def add_reward(self, reward):
         self.rewards.append(reward)
 
+    def add_rewards(self, rewards):
+        self.rewards = rewards
+
     def plot_reward(self, global_step):
         summary = self.tf_session.run(self.summary_reward, feed_dict={
                                       self.tf_rewards: self.rewards})
@@ -50,14 +54,17 @@ class EvaluationStatistics:
                                       self.tf_critic_loss: critic_loss})
         self.tf_writer.add_summary(summary, global_step)
 
-    def add_distance(self, env):
+    def add_distance(self, distance):
         """
-        take the whole env and store interesting quantities
+        Stores the distance
         """
-        state_desc = env.get_state_desc()
-        # x of the pelvis
-        distance = state_desc["body_pos"]["pelvis"][0]
         self.distances.append(distance)
+
+    def add_distances(self, distances):
+        """
+        Stores the distance
+        """
+        self.distances = distances
 
     def plot_distance(self, global_step):
         summary_mean = self.tf_session.run(self.summary_dist_mean, feed_dict={
@@ -71,8 +78,14 @@ class EvaluationStatistics:
     def add_step_time(self, step_time):
         self.step_times.append(step_time)
 
+    def add_step_times(self, step_times):
+        self.step_times = step_times
+
     def add_episode_length(self, episode_length):
         self.episode_lengths.append(episode_length)
+
+    def add_episode_lengths(self, episode_lengths):
+        self.episode_lengths = episode_lengths
 
     def fill_stats(self, combined_stats):
         combined_stats['distances_mean'] = np.mean(self.distances)
@@ -113,7 +126,8 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
           critic, memory, gamma, normalize_returns, normalize_observations,
           critic_l2_reg, action_noise, popart, clip_norm,
           batch_size, reward_scale, action_repeat, full, exclude_centering_frame,
-          visualize, fail_reward, num_processes, experiment_name, learning_session, tau=0.01):
+          visualize, fail_reward, num_processes, learning_session, min_buffer_length,
+          integrator_accuracy=5e-5, max_env_traj=100, tau=0.01):
     """
     Parameters
     ----------
@@ -155,9 +169,10 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
     # Build Workers
     events = [Event() for _ in range(num_processes)]
     inputQs = [Queue() for _ in range(num_processes)]
-    testing_event = Event()
-    testing_Q = Queue()
     outputQ = Queue()
+    testing_event = Event()
+    testing_inputQ = Queue()
+    testing_outputQ = Queue()
     # Split work among workers
     nb_episodes_per_worker = nb_episodes // num_processes
 
@@ -181,6 +196,8 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                               outputQ,
                               full,
                               exclude_centering_frame,
+                              integrator_accuracy,
+                              max_env_traj,
                               visualize,
                               fail_reward) for i in range(num_processes)]
 
@@ -205,12 +222,15 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                             clip_norm,
                             reward_scale,
                             testing_event,
-                            testing_Q,
+                            testing_inputQ,
+                            testing_outputQ,
                             full,
                             exclude_centering_frame,
+                            integrator_accuracy,
+                            max_env_traj,
                             visualize,
-                            fail_reward,
-                            log_dir)
+                            fail_reward
+                            )
 
     # Run the Tester
     tester.start()
@@ -251,30 +271,54 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                         agent.store_transition(*t)
 
                 # Training phase
-                print("Starting traning phase . . .")
-                for t_train in range(nb_train_steps):
-                    critic_loss, actor_loss = agent.train()
-                    agent.update_target_net()
+                if agent.memory.nb_entries > min_buffer_length:
+                    print("Starting traning phase . . .")
+                    for t_train in range(nb_train_steps):
+                        critic_loss, actor_loss = agent.train()
+                        agent.update_target_net()
 
-                    # Plot statistics
-                    stats.add_critic_loss(critic_loss, global_step)
-                    stats.add_actor_loss(actor_loss, global_step)
-                    global_step += 1
-                print("End training phase")
+                        # Plot statistics
+                        stats.add_critic_loss(critic_loss, global_step)
+                        stats.add_actor_loss(actor_loss, global_step)
+                        global_step += 1
+                    print("End training phase")
                 
-                # Evaluation phase
-                if cycle % eval_freq == 0:
-                    # Generate evaluation trajectories
-                    print("Cycle number: ", cycle+epoch*nb_epoch_cycles)
-                    print("Started testing worker")
-                    actor_ws = get_parameters()
-                    testing_Q.put(('test', actor_ws, global_step))
-                    testing_event.set()
+                    # Evaluation phase
+                    if cycle % eval_freq == 0:
+                        # Generate evaluation trajectories
+                        print("Cycle number: ", cycle+epoch*nb_epoch_cycles)
+                        print("Started testing worker")
+                        actor_ws = get_parameters()
+                        testing_inputQ.put(('test', actor_ws, global_step))
+                        testing_event.set()
 
-                # Save weights
-                if cycle % save_freq == 0:
-                    save_path = saver.save(sess, checkpoint_dir)
-                    print("Model saved in path: %s" % save_path)
+                        # try to collect previous testing samples
+                        try:
+                            rewards, step_times, distances, episode_lengths, test_step = testing_outputQ.get_nowait()
+                            print("Finished a testing worker")
+                            stats.add_distances(distances)
+                            stats.add_episode_lengths(episode_lengths)
+                            stats.add_rewards(rewards)
+                            stats.add_step_times(step_times)
+                            combined_stats = {}
+                            stats.fill_stats(combined_stats)
+                            for key in sorted(combined_stats.keys()):
+                                logger.record_tabular(key, combined_stats[key])
+                            logger.dump_tabular()
+                            logger.info('Step:'+str(test_step))
+                            stats.plot_distance(test_step)
+                            stats.plot_reward(test_step)
+                            
+                        except queue.Empty:
+                            # do nothing here
+                            pass
+
+                    # Save weights
+                    if cycle % save_freq == 0:
+                        save_path = saver.save(sess, checkpoint_dir)
+                        print("Model saved in path: %s" % save_path)
+                else:
+                    print("Not enough entry in memory buffer")
 
         # Stop workers
         for i in range(num_processes):
@@ -306,6 +350,8 @@ class SamplingWorker(Process):
                  # environment wrapper parameters
                  full,
                  exclude_centering_frame,
+                 integrator_accuracy,
+                 max_env_traj,
                  visualize,
                  fail_reward,
                  action_noise_prob=0.7):
@@ -334,6 +380,8 @@ class SamplingWorker(Process):
         self.visualize = visualize
         self.fail_reward = fail_reward
         self.action_noise_prob = action_noise_prob
+        self.integrator_accuracy = integrator_accuracy
+        self.max_env_traj = max_env_traj
 
     def run(self):
         """Override Process.run()"""
@@ -342,8 +390,12 @@ class SamplingWorker(Process):
                                  full=self.full,
                                  exclude_centering_frame=self.exclude_centering_frame,
                                  visualize=self.visualize,
-                                 fail_reward=self.fail_reward)
+                                 fail_reward=self.fail_reward,
+                                 integrator_accuracy=self.integrator_accuracy)
         nb_actions = env.action_space.shape[-1]
+
+        # keep tracks of the number of trajectory done
+        num_traj = 0
 
         env.seed(os.getpid())
         set_global_seeds(os.getpid())
@@ -391,6 +443,15 @@ class SamplingWorker(Process):
                     # Do sampling
                     transitions = sampling_fn()
                     self.outputQ.put((os.getpid(), transitions))
+
+                    # update number of trajectories
+                    num_traj += self.nb_episodes
+
+                    # restore environment if needed  
+                    if num_traj >= self.max_env_traj:
+                        env.restore()
+                        num_traj = 0
+
                 elif message == 'exit':
                     print('[Worker {}] Exiting...'.format(os.getpid()))
                     env.close()
@@ -443,20 +504,6 @@ def _setup_tf_summary():
     writer = tf.summary.FileWriter(log_dir)
     return writer
 
-
-def get_log_and_checkpoint_dirs(experiment_name):
-    import datetime
-
-    now = datetime.datetime.now()
-    log_dir = "tf_logs/" + experiment_name + \
-        "-" + now.strftime("%Y%m%d-%H%M%S") + "/"
-    checkpoint_dir = "tf_checkpoints/" + experiment_name + \
-        "-" + now.strftime("%Y%m%d-%H%M%S")
-    if not os.path.isdir(checkpoint_dir):
-        os.makedirs(checkpoint_dir)
-    checkpointfile = checkpoint_dir + "/model"
-    return log_dir, checkpointfile
-
 class TestingWorker(Process):
     def __init__(self,
                  actor,
@@ -476,13 +523,14 @@ class TestingWorker(Process):
                  reward_scale,
                  event,
                  inputQ,
+                 outputQ,
                  # environment wrapper parameters
                  full,
                  exclude_centering_frame,
+                 integrator_accuracy,
+                 max_env_traj,
                  visualize,
-                 fail_reward,
-                 log_dir
-                 ):
+                 fail_reward):
         # Invoke parent constructor BEFORE doing anything!!
         Process.__init__(self)
         self.actor = actor
@@ -506,7 +554,9 @@ class TestingWorker(Process):
         self.exclude_centering_frame = exclude_centering_frame
         self.visualize = visualize
         self.fail_reward = fail_reward
-        self.log_dir = log_dir
+        self.integrator_accuracy = integrator_accuracy
+        self.outputQ = outputQ
+        self.max_env_traj = max_env_traj
 
     def run(self):
         """Override Process.run()"""
@@ -515,11 +565,14 @@ class TestingWorker(Process):
                                  full=self.full,
                                  exclude_centering_frame=self.exclude_centering_frame,
                                  visualize=self.visualize,
-                                 fail_reward=self.fail_reward)
+                                 fail_reward=self.fail_reward,
+                                 integrator_accuracy=self.integrator_accuracy)
         nb_actions = env.action_space.shape[-1]
 
         env.seed(os.getpid())
         set_global_seeds(os.getpid())
+
+        num_traj = 0
 
         # Allocate ReplayBuffer
         memory = Memory(limit=int(1e6), action_shape=env.action_space.shape,
@@ -544,12 +597,6 @@ class TestingWorker(Process):
             agent.initialize(sess)
             set_parameters = U.SetFromFlat(self.actor.trainable_vars)
 
-            writer = tf.summary.FileWriter(self.log_dir)
-            writer.add_graph(sess.graph)
-
-            # Initialize writer and statistics
-            stats = EvaluationStatistics(tf_session=sess, tf_writer=writer)
-
             # Start sampling-worker loop.
             while True:
                 self.event.wait()  # Wait for a new message
@@ -559,7 +606,17 @@ class TestingWorker(Process):
                     # Set weights
                     set_parameters(actor_ws)
                     # Do testing
-                    testing_fn(stats, global_step)
+                    rewards, step_times, distances, episode_lengths = testing_fn()
+                    self.outputQ.put((rewards, step_times, distances, episode_lengths, global_step))
+
+                    # update number of trajectories
+                    num_traj += self.nb_episodes
+
+                    # restore environment if needed  
+                    if num_traj >= self.max_env_traj:
+                        env.restore()
+                        num_traj = 0
+
                 elif message == 'exit':
                     print('[Worker {}] Exiting...'.format(os.getpid()))
                     env.close()
@@ -567,13 +624,17 @@ class TestingWorker(Process):
 
 def make_testing_fn(agent, env, episode_length, action_repeat, max_action, nb_episodes):
     # Define the closure
-    def sampling_fn(stats, global_step):
+    def sampling_fn():
         # Sampling logic
         agent.reset()
         obs = env.reset()
-        transitions = []
+        rewards = []
+        step_times = []
+        distances = []
+        episode_lengths = []
         obs = env.reset()
         for n in range(nb_episodes):
+            reward_i = 0
             for t in range(episode_length):
                 # Select action a_t without noise
                 a_t, _ = agent.pi(
@@ -582,31 +643,21 @@ def make_testing_fn(agent, env, episode_length, action_repeat, max_action, nb_ep
 
                 # Execute action a_t and observe reward r_t and next state s_{t+1}
                 start_step_time = time.time()
-                obs, r_t, eval_done, info = env.step(
-                    max_action * a_t)
+                obs, r_t, eval_done, _ = env.step(max_action * a_t)
                 end_step_time = time.time()
                 step_time = end_step_time - start_step_time
-                stats.add_reward(r_t)
-                stats.add_distance(env)
-                stats.add_step_time(step_time)
+                reward_i += r_t
+                step_times.append(step_time)
 
                 if eval_done:
-                    print("  Episode done!")
+                    print("  Testing Episode done!")
+                    episode_lengths.append(t)
+                    distances.append(env.get_distance())
+                    rewards.append(reward_i)
                     obs = env.reset()
-                    stats.add_episode_length(t)
                     break
+        print("Evaluation done")
 
-        combined_stats = agent.get_stats().copy()
-        stats.fill_stats(combined_stats)
-        for key in sorted(combined_stats.keys()):
-            logger.record_tabular(key, combined_stats[key])
-        logger.dump_tabular()
-        logger.info('')
-        # Plot average reward
-        stats.plot_reward(global_step)
-        stats.plot_distance(global_step)
-
-
-        return transitions
+        return (rewards, step_times, distances, episode_lengths)
     return sampling_fn
 
