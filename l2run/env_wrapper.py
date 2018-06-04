@@ -227,6 +227,6 @@ class L2RunEnvWrapper(gym.Wrapper):
         assert len(names) == self.get_observation_space_size()
         return names
             
-def create_environment(visualize, full, action_repeat, fail_reward, exclude_centering_frame, integrator_accuracy):
+def create_environment(visualize, full, action_repeat, fail_reward, exclude_centering_frame, integrator_accuracy=5e-5):
     env = L2RunEnvWrapper(visualize, integrator_accuracy, full, action_repeat, fail_reward, exclude_centering_frame)
     return env
