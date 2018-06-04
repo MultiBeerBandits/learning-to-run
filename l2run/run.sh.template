@@ -17,4 +17,6 @@ python ${ROOT}/l2run/main.py train --batch-size 200 \
                             --no-full \
                             --no-exclude-centering-frame \
                             --critic-l2-reg 0 \
-                            --tau 0.000001 \
+                            --tau 0.0001 \
+                            --integrator-accuracy 2e-3 \
+                            --max-env-traj 100 \
