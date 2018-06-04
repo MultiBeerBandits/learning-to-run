@@ -40,7 +40,7 @@ def test(env, actor, critic, memory, normalize_observations, gamma, reward_scale
         print("restoring variables")
         # Add ops to save and restore all the variables.
         saver.restore(sess, tf.train.latest_checkpoint(checkpoint_dir))
-
+        step_times = []
         for eval_episode in range(nb_episodes):
             print("Evaluating episode {}...".format(eval_episode))
             obs = env.reset()
@@ -57,8 +57,10 @@ def test(env, actor, critic, memory, normalize_observations, gamma, reward_scale
                     max_action * a_t)
                 end_step_time = time.time()
                 step_time = end_step_time - start_step_time
+                step_times.append(step_time)
 
                 if eval_done:
                     print("  Episode done!")
                     obs = env.reset()
                     break
+        print("Average step time: ", np.mean(step_times))
