@@ -434,8 +434,8 @@ class SamplingWorker(Process):
             set_parameters = U.SetFromFlat(self.actor.trainable_vars)
             # Start sampling-worker loop.
             while True:
-                self.event.wait()  # Wait for a new message
-                self.event.clear()  # Upon message receipt, mark as read
+                #self.event.wait()  # Wait for a new message
+                #self.event.clear()  # Upon message receipt, mark as read
                 message, actor_ws = self.inputQ.get()  # Pop message
                 if message == 'sample':
                     # Set weights
@@ -599,8 +599,8 @@ class TestingWorker(Process):
 
             # Start sampling-worker loop.
             while True:
-                self.event.wait()  # Wait for a new message
-                self.event.clear()  # Upon message receipt, mark as read
+                #self.event.wait()  # Wait for a new message
+                #self.event.clear()  # Upon message receipt, mark as read
                 message, actor_ws, global_step = self.inputQ.get()  # Pop message
                 if message == 'test':
                     # Set weights
