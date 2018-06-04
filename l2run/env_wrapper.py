@@ -11,7 +11,7 @@ import math
 
 class L2RunEnvWrapper(gym.Wrapper):
 
-    def __init__(self, env, full=False, action_repeat=5, fail_reward=-0.2, 
+    def __init__(self, visualize, integrator_accuracy, full=False, action_repeat=5, fail_reward=-0.2, 
                  exclude_centering_frame=False):
         """
         Initialize the environment:
@@ -21,8 +21,12 @@ class L2RunEnvWrapper(gym.Wrapper):
         - exclude_centering_frame: put or not the pelvis x and y in obs vector
                                    (obs are centered wrt pelvis)
         """
+        env = L2RunEnv(visualize=visualize)
+        env.osim_model.set_integrator_accuracy(integrator_accuracy)
         gym.Wrapper.__init__(self, env)
         env.reset()
+        self.integrator_accuracy = integrator_accuracy
+        self.visualize = visualize
         self.full = full
         self.env = env
         self.action_repeat = action_repeat
@@ -42,6 +46,12 @@ class L2RunEnvWrapper(gym.Wrapper):
         self.env_step = 0
         self.env.reset(**kwargs)
         return self.get_observation()
+
+    def restore(self):
+        # Restore the environment wrapped inside
+        self.env = L2RunEnv(visualize=self.visualize)
+        self.env.osim_model.set_integrator_accuracy(self.integrator_accuracy)
+        self.env.reset()
 
     def seed(self, seed):
         self.env.seed(seed)
@@ -69,6 +79,13 @@ class L2RunEnvWrapper(gym.Wrapper):
 
     def get_state_desc(self):
         return self.env.get_state_desc()
+
+    def get_distance(self):
+        """
+        Returns the current distance, i.e. the x of the ground pelvis
+        """
+        state_desc = self.env.get_state_desc()
+        return state_desc["body_pos"]["pelvis"][0]
 
     ## Values in the observation vector
     def get_observation_basic(self):
@@ -202,7 +219,6 @@ class L2RunEnvWrapper(gym.Wrapper):
         assert len(names) == self.get_observation_space_size()
         return names
             
-def create_environment(visualize, full, action_repeat, fail_reward, exclude_centering_frame):
-    env = L2RunEnv(visualize=visualize)
-    env = L2RunEnvWrapper(env, full, action_repeat, fail_reward, exclude_centering_frame)
+def create_environment(visualize, full, action_repeat, fail_reward, exclude_centering_frame, integrator_accuracy):
+    env = L2RunEnvWrapper(visualize, integrator_accuracy, full, action_repeat, fail_reward, exclude_centering_frame)
     return env
