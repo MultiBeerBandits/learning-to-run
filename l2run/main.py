@@ -97,12 +97,12 @@ def run(seed, noise_type, layer_norm, evaluation, flip_state,
         start_time = time.time()
 
     # Create LearningSession was passed
+    del kwargs['func']
     sess_args = pack_run_params(seed, noise_type, layer_norm, evaluation, flip_state,
                                 full, action_repeat, fail_reward, exclude_centering_frame, **kwargs)
     learning_session = LearningSession(
         session_path, checkpoint_dir, log_dir, last_training_step, **sess_args)
 
-    del kwargs['func']
     del kwargs['num_timesteps']
     training.train(env=env, action_noise=action_noise,
                    actor=actor, critic=critic, memory=memory,
@@ -119,7 +119,7 @@ def run(seed, noise_type, layer_norm, evaluation, flip_state,
 
 
 def test(seed, layer_norm, full, action_repeat, fail_reward, exclude_centering_frame,
-        integrator_accuracy, render, **kwargs):
+         integrator_accuracy, render, **kwargs):
     # Configure things.
     rank = MPI.COMM_WORLD.Get_rank()
     if rank != 0:
@@ -191,7 +191,7 @@ def build_train_args(sub_parsers):
     parser.add_argument('--seed', help='RNG seed', type=int, default=0)
     parser.add_argument('--critic-l2-reg', type=float, default=1e-2)
     parser.add_argument('--batch-size', type=int, default=64)  # per MPI worker
-    parser.add_argument('--min-buffer-length', type=int, default=200) 
+    parser.add_argument('--min-buffer-length', type=int, default=200)
     # parser.add_argument('--actor-lr', type=float, default=1e-4)
     # parser.add_argument('--critic-lr', type=float, default=1e-3)
     boolean_flag(parser, 'popart', default=False)
@@ -269,6 +269,7 @@ def build_resume_args(sub_parsers):
     parser.add_argument('--dump-file', type=str,
                         help='The learning session to resume')
 
+
 def get_log_and_checkpoint_dirs(experiment_name):
     import datetime
 
@@ -281,6 +282,7 @@ def get_log_and_checkpoint_dirs(experiment_name):
         os.makedirs(checkpoint_dir)
     checkpointfile = checkpoint_dir + "/model"
     return log_dir, checkpointfile
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(

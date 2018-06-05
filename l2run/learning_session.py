@@ -94,7 +94,7 @@ class LearningSession:
     def dump(self, last_training_step):
         dump_name = '{}.json'.format(self._file_name())
         save_path = self.session_path / dump_name
-        self.training_args = last_training_step
+        self.last_training_step = last_training_step
         data = {}
         data['checkpoint_dir'] = self.checkpoint_dir
         data['log_dir'] = self.log_dir
