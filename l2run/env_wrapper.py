@@ -18,8 +18,7 @@ class L2RunEnvWrapper(gym.Wrapper):
         Parameters:
         - full: uses as observation vector the full observation vector
         - skipFrame : How many frame to skip every action
-        - exclude_centering_frame: put or not the pelvis x and y in obs vector
-                                   (obs are centered wrt pelvis)
+        - exclude_centering_frame: put or not the pelvis x in obs vector (obs are centered wrt pelvis x)
         """
         gym.Wrapper.__init__(self, env)
         env.reset()
@@ -80,12 +79,15 @@ class L2RunEnvWrapper(gym.Wrapper):
 
         # Augmented environment from the L2R challenge
         res = []
-
-        # obtain pelvis x,y coordinates, that will be used for centering of body 
-        # poses x y. add it to obs vec only if required
-        pelvis = state_desc["body_pos"]["pelvis"][0:2]
+        # obtain pelvis x,y coordinates
+        # x coordinate is used to center the x coord of other 
+        # observations, and it is added to the observation vector
+        # only if required
+        pelvis_x = state_desc["body_pos"]["pelvis"][0]
+        pelvis_y = state_desc["body_pos"]["pelvis"][1]
         if not self.exclude_centering_frame:
-            res += pelvis
+            res += [pelvis_x]
+        res += [pelvis_y]
 
         for joint in ["hip_l","hip_r","knee_l","knee_r","ankle_l","ankle_r"]:
             res += state_desc["joint_pos"][joint]
@@ -97,9 +99,11 @@ class L2RunEnvWrapper(gym.Wrapper):
 
         # center body parts poses in pelvis reference
         for body_part in ["head", "torso", "toes_l", "toes_r", "talus_l", "talus_r"]:
-            res += [state_desc["body_pos"][body_part][i] - pelvis[i] for i in range(2)]
+            res += [state_desc["body_pos"][body_part][0] - pelvis_x] # x coord centerd
+            res += [state_desc["body_pos"][body_part][1]] # y coord
         # center in pelvis reference also the center of mass
-        res += [state_desc["misc"]["mass_center_pos"][i] - pelvis[i] for i in range(2)]
+        res += [state_desc["misc"]["mass_center_pos"][0] - pelvis_x] # x coord centered
+        res += [state_desc["misc"]["mass_center_pos"][1]] # y coord
         res += state_desc["misc"]["mass_center_vel"]
 
         # add pelvis x and y speed
@@ -206,7 +210,7 @@ class L2RunEnvWrapper(gym.Wrapper):
             names += ["pelvis_vel_x", "pelvis_vel_y"]
         # if exclude_centering_frame need to remove x and y of pelvis (first 2 el)
         if self.exclude_centering_frame:
-            names = names[2:]
+            names = names[1:]
         assert len(names) == self.get_observation_space_size()
         return names
             
