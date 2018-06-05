@@ -207,30 +207,30 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
 
     # Create tester process
     tester = TestingWorker(actor,
-                            critic,
-                            episode_length,
-                            nb_eval_episodes,
-                            action_repeat,
-                            max_action,
-                            gamma,
-                            tau,
-                            normalize_returns,
-                            batch_size,
-                            normalize_observations,
-                            critic_l2_reg,
-                            popart,
-                            clip_norm,
-                            reward_scale,
-                            testing_event,
-                            testing_inputQ,
-                            testing_outputQ,
-                            full,
-                            exclude_centering_frame,
-                            integrator_accuracy,
-                            max_env_traj,
-                            visualize,
-                            fail_reward
-                            )
+                           critic,
+                           episode_length,
+                           nb_eval_episodes,
+                           action_repeat,
+                           max_action,
+                           gamma,
+                           tau,
+                           normalize_returns,
+                           batch_size,
+                           normalize_observations,
+                           critic_l2_reg,
+                           popart,
+                           clip_norm,
+                           reward_scale,
+                           testing_event,
+                           testing_inputQ,
+                           testing_outputQ,
+                           full,
+                           exclude_centering_frame,
+                           integrator_accuracy,
+                           max_env_traj,
+                           visualize,
+                           fail_reward
+                           )
 
     # Run the Tester
     tester.start()
@@ -282,7 +282,7 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                         stats.add_actor_loss(actor_loss, global_step)
                         global_step += 1
                     print("End training phase")
-                
+
                     # Evaluation phase
                     if cycle % eval_freq == 0:
                         # Generate evaluation trajectories
@@ -308,15 +308,19 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                             logger.info('Step:'+str(test_step))
                             stats.plot_distance(test_step)
                             stats.plot_reward(test_step)
-                            
+
                         except queue.Empty:
                             # do nothing here
                             pass
 
-                    # Save weights
                     if cycle % save_freq == 0:
+                        # Save weights
                         save_path = saver.save(sess, checkpoint_dir)
                         print("Model saved in path: %s" % save_path)
+                        # Dump learning session
+                        learning_session.dump(agent.training_step)
+                        print("Learning session dumped to: %s" %
+                              str(learning_session.session_path))
                 else:
                     print("Not enough entry in memory buffer")
 
@@ -434,8 +438,8 @@ class SamplingWorker(Process):
             set_parameters = U.SetFromFlat(self.actor.trainable_vars)
             # Start sampling-worker loop.
             while True:
-                #self.event.wait()  # Wait for a new message
-                #self.event.clear()  # Upon message receipt, mark as read
+                # self.event.wait()  # Wait for a new message
+                # self.event.clear()  # Upon message receipt, mark as read
                 message, actor_ws = self.inputQ.get()  # Pop message
                 if message == 'sample':
                     # Set weights
@@ -447,7 +451,7 @@ class SamplingWorker(Process):
                     # update number of trajectories
                     num_traj += self.nb_episodes
 
-                    # restore environment if needed  
+                    # restore environment if needed
                     if num_traj >= self.max_env_traj:
                         env.restore()
                         num_traj = 0
@@ -503,6 +507,7 @@ def _setup_tf_summary():
 
     writer = tf.summary.FileWriter(log_dir)
     return writer
+
 
 class TestingWorker(Process):
     def __init__(self,
@@ -599,20 +604,21 @@ class TestingWorker(Process):
 
             # Start sampling-worker loop.
             while True:
-                #self.event.wait()  # Wait for a new message
-                #self.event.clear()  # Upon message receipt, mark as read
+                # self.event.wait()  # Wait for a new message
+                # self.event.clear()  # Upon message receipt, mark as read
                 message, actor_ws, global_step = self.inputQ.get()  # Pop message
                 if message == 'test':
                     # Set weights
                     set_parameters(actor_ws)
                     # Do testing
                     rewards, step_times, distances, episode_lengths = testing_fn()
-                    self.outputQ.put((rewards, step_times, distances, episode_lengths, global_step))
+                    self.outputQ.put(
+                        (rewards, step_times, distances, episode_lengths, global_step))
 
                     # update number of trajectories
                     num_traj += self.nb_episodes
 
-                    # restore environment if needed  
+                    # restore environment if needed
                     if num_traj >= self.max_env_traj:
                         env.restore()
                         num_traj = 0
@@ -621,6 +627,7 @@ class TestingWorker(Process):
                     print('[Worker {}] Exiting...'.format(os.getpid()))
                     env.close()
                     break
+
 
 def make_testing_fn(agent, env, episode_length, action_repeat, max_action, nb_episodes):
     # Define the closure
@@ -660,4 +667,3 @@ def make_testing_fn(agent, env, episode_length, action_repeat, max_action, nb_ep
 
         return (rewards, step_times, distances, episode_lengths)
     return sampling_fn
-
