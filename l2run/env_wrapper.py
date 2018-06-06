@@ -86,7 +86,6 @@ class L2RunEnvWrapper(gym.Wrapper):
         state_desc = self.env.get_state_desc()
         return state_desc["body_pos"]["pelvis"][0]
 
-    ## Values in the observation vector
     def get_observation_basic(self):
         """
         Returns the basic observation vector with positions and velocities
@@ -96,37 +95,32 @@ class L2RunEnvWrapper(gym.Wrapper):
 
         # Augmented environment from the L2R challenge
         res = []
-        # obtain pelvis x,y coordinates
-        # x coordinate is used to center the x coord of other 
-        # observations, and it is added to the observation vector
-        # only if required
-        pelvis_x = state_desc["body_pos"]["pelvis"][0]
-        pelvis_y = state_desc["body_pos"]["pelvis"][1]
+
+        # obtain pelvis x,y coordinates, that will be used for centering of body
+        # poses x y. add it to obs vec only if required
+        pelvis = state_desc["body_pos"]["pelvis"][0:2]
         if not self.exclude_centering_frame:
-            res += [pelvis_x]
-        res += [pelvis_y]
+            res += pelvis
 
         for joint in ["hip_l","hip_r","knee_l","knee_r","ankle_l","ankle_r"]:
             res += state_desc["joint_pos"][joint]
             res += state_desc["joint_vel"][joint]
-        
+
         # ground pelvis rotation and rotation speed
         res += state_desc["joint_pos"]["ground_pelvis"][0:1]
         res += state_desc["joint_vel"]["ground_pelvis"][0:1]
 
         # center body parts poses in pelvis reference
         for body_part in ["head", "torso", "toes_l", "toes_r", "talus_l", "talus_r"]:
-            res += [state_desc["body_pos"][body_part][0] - pelvis_x] # x coord centerd
-            res += [state_desc["body_pos"][body_part][1]] # y coord
+            res += [state_desc["body_pos"][body_part][i] - pelvis[i] for i in range(2)]
         # center in pelvis reference also the center of mass
-        res += [state_desc["misc"]["mass_center_pos"][0] - pelvis_x] # x coord centered
-        res += [state_desc["misc"]["mass_center_pos"][1]] # y coord
+        res += [state_desc["misc"]["mass_center_pos"][i] - pelvis[i] for i in range(2)]
         res += state_desc["misc"]["mass_center_vel"]
 
         # add pelvis x and y speed
         res += state_desc["body_vel"]["pelvis"][0:2]
 
-        # strenght of left and right psoas, nex obstacle distance x from pelvis, y of the 
+        # strenght of left and right psoas, nex obstacle distance x from pelvis, y of the
         # center relative to the ground, radius
         # here are set to 0
         # res += [0]*5 TODO
