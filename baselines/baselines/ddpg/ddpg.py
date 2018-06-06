@@ -71,7 +71,7 @@ def get_perturbed_actor_updates(actor, perturbed_actor, param_noise_stddev):
 class DDPG(object):
     def __init__(self, actor, critic, memory, observation_shape, action_shape, param_noise=None, action_noise=None,
                  gamma=0.99, tau=0.001, normalize_returns=False, enable_popart=False, normalize_observations=True,
-                 batch_size=128, observation_range=(-5., 5.), action_range=(-1., 1.), return_range=(-np.inf, np.inf),
+                 batch_size=128, observation_range=(-5., 5.), action_range=(0., 1.), return_range=(-np.inf, np.inf),
                  adaptive_param_noise=True, adaptive_param_noise_policy_threshold=.1,
                  critic_l2_reg=0., initial_actor_lr=1e-3, initial_critic_lr=2e-3, final_actor_lr=5e-5,
                  final_critic_lr=5e-5, max_step_actor=10e6, max_step_critic=10e6, clip_norm=None, reward_scale=1.,
