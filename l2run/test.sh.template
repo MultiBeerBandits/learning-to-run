@@ -10,4 +10,5 @@ python ${ROOT}/l2run/main.py test
                             --checkpoint-dir "${ROOT}/tf_checkpoints/-20180526-163703" \
                             --flip-state \
                             --no-full \
-                            --no-exclude-centering-frame
+                            --no-exclude-centering-frame \
+                            --integrator-accuracy 1e-3 \
