@@ -4,7 +4,7 @@ ROOT=`git rev-parse --show-toplevel`
 python ${ROOT}/l2run/main.py train --batch-size 200 \
                             --nb-epochs 10000 \
                             --nb-epoch-cycles 1000 \
-                            --nb-episodes 100 \
+                            --nb-episodes 60 \
                             --episode-length 1000 \
                             --nb-train-steps 20 \
                             --eval-freq 10 \
@@ -15,7 +15,7 @@ python ${ROOT}/l2run/main.py train --batch-size 200 \
                             --flip-state \
                             --num-processes 20 \
                             --no-full \
-                            --no-exclude-centering-frame \
+                            --exclude-centering-frame \
                             --tau 0.001 \
                             --integrator-accuracy 1e-3 \
                             --max-env-traj 100 \
