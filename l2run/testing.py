@@ -50,7 +50,6 @@ def test(env, actor, critic, memory, normalize_observations, gamma, reward_scale
                 a_t, _ = agent.pi(
                     obs, apply_param_noise=False, apply_action_noise=False, compute_Q=False)
                 assert a_t.shape == env.action_space.shape
-                assert (a_t >= 0).all()
 
                 # Execute action a_t and observe reward r_t and next state s_{t+1}
                 start_step_time = time.time()
