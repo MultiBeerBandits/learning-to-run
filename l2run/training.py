@@ -257,7 +257,7 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                 for i in range(num_processes_to_wait):
                     pid, transitions = outputQ.get()
                     print(
-                        'Collecting transition samples from Worker {}/{}'.format(i+1, num_wait_processes))
+                        'Collecting transition samples from Worker {}/{}'.format(i+1, num_processes_to_wait))
                     for t in transitions:
                         agent.store_transition(*t)
 
