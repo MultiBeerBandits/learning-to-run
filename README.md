@@ -20,8 +20,8 @@ Values in the basic observation vector:
 - vx, vy of pelvis (2)
 - 2 + 2*6 + 2*6 + 2 + 4 + 2 = 34
 
-State is centered with respect to the pelvis (x and y).
-It is possible to remove the pelvis from the observation vector by setting --exclude-centering-frame.
+Body pose's `x` coordinates are centered with respect to the pelvis `x` coordinate.
+It is possible to remove the pelvis `x` coordinate from the observation vector by setting `--exclude-centering-frame`.
 
 Muscles strength is fixed to 1.
 
@@ -38,7 +38,7 @@ No obstacles.
 - Linear decay for learning rates
 
 # Installation
-```
+```sh
 conda create -n opensim-rl -c kidzik opensim python=3.6.1
 source activate opensim-rl
 conda install -c conda-forge lapack git
@@ -47,20 +47,20 @@ pip install git+https://github.com/stanfordnmbl/osim-rl.git
 
 # Baseline installation
 Install the baseline version inside this repo:
-```
+```sh
 cd baselines
 pip install -e .
 ```
 
 # Running
 Using the script:
-```
+```sh
 cp osim/run.sh.template osim/run.sh
 chmod +x osim/run.sh
 ```
 
 Or manually:
-```
+```sh
 python ${ROOT}/osim/main.py --batch-size 200 \
 							--nb-epochs 1000 \
                             --nb-epoch-cycles 1000 \
@@ -77,8 +77,9 @@ python ${ROOT}/osim/main.py --batch-size 200 \
 ```
 
 # Generate video from frames
- ````
-ffmpeg -f image2 -framerate 25 -pattern_type sequence -start_number 1 -i "Frame%04d.png" -s 800x600 test.avi
+```sh
+cd video_folder
+ffmpeg -framerate 15 -i "Frame%04d.png" -vf format=yuv420p -preset veryslow l2run_video.mp4
 ```
 
 # Authors
