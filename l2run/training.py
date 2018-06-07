@@ -127,8 +127,8 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
           critic, memory, gamma, normalize_returns, normalize_observations,
           critic_l2_reg, action_noise, popart, clip_norm,
           batch_size, reward_scale, action_repeat, full, exclude_centering_frame,
-          visualize, fail_reward, num_processes, num_testing_processes, learning_session, min_buffer_length,
-          integrator_accuracy=5e-5, max_env_traj=100, tau=0.01):
+          visualize, fail_reward, num_processes, num_processes_to_wait, num_testing_processes,
+          learning_session, min_buffer_length, integrator_accuracy=5e-5, max_env_traj=100, tau=0.01):
     """
     Parameters
     ----------
@@ -230,7 +230,6 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
     # Start training loop
     with U.single_threaded_session() as sess:
         agent.initialize(sess)
-        num_wait_processes = num_processes // 2 if num_processes > 1 else 1
 
         writer = tf.summary.FileWriter(log_dir)
         writer.add_graph(sess.graph)
@@ -255,7 +254,7 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                     events[i].set()  # Notify worker: sample baby, sample!
 
                 # Collect results when ready
-                for i in range(num_wait_processes):
+                for i in range(num_processes_to_wait):
                     pid, transitions = outputQ.get()
                     print(
                         'Collecting transition samples from Worker {}/{}'.format(i+1, num_wait_processes))
@@ -381,7 +380,7 @@ class SamplingWorker(Process):
 
         # Create OU Noise
         action_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(nb_actions),
-                                                    sigma=0.2, 
+                                                    sigma=0.2,
                                                     theta=0.1)
 
         # Create Parameter Noise

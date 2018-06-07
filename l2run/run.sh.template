@@ -4,19 +4,20 @@ ROOT=`git rev-parse --show-toplevel`
 python ${ROOT}/l2run/main.py train --batch-size 200 \
                            --nb-epochs 10000 \
                            --nb-epoch-cycles 1000 \
-                           --nb-episodes 30 \
+                           --nb-episodes 40 \
                            --episode-length 10000 \
-                           --nb-train-steps 5 \
-                           --eval-freq 10 \
-                           --save-freq 10 \
+                           --nb-train-steps 1 \
+                           --eval-freq 500 \
+                           --save-freq 500 \
                            --nb-eval-episodes 5 \
                            --action-repeat 5 \
                            --reward-scale 10 \
                            --flip-state \
                            --num-processes 20 \
+                           --num-processes-to-wait 1 \
                            --num-testing-processes 5 \
                            --no-full \
-                           --no-exclude-centering-frame \
+                           --exclude-centering-frame \
                            --tau 0.0001 \
                            --gamma 0.9 \
                            --critic-l2-reg 0 \
