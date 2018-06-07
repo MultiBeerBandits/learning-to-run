@@ -2,20 +2,25 @@
 ROOT=`git rev-parse --show-toplevel`
 
 python ${ROOT}/l2run/main.py train --batch-size 200 \
-                            --nb-epochs 10000 \
-                            --nb-epoch-cycles 1000 \
-                            --nb-episodes 60 \
-                            --episode-length 1000 \
-                            --nb-train-steps 20 \
-                            --eval-freq 10 \
-                            --save-freq 10 \
-                            --nb-eval-episodes 20 \
-                            --action-repeat 5 \
-                            --reward-scale 10 \
-                            --flip-state \
-                            --num-processes 20 \
-                            --no-full \
-                            --exclude-centering-frame \
-                            --tau 0.001 \
-                            --integrator-accuracy 1e-3 \
-                            --max-env-traj 100 \
+                           --nb-epochs 10000 \
+                           --nb-epoch-cycles 1000 \
+                           --nb-episodes 30 \
+                           --episode-length 10000 \
+                           --nb-train-steps 5 \
+                           --eval-freq 10 \
+                           --save-freq 10 \
+                           --nb-eval-episodes 5 \
+                           --action-repeat 5 \
+                           --reward-scale 10 \
+                           --flip-state \
+                           --num-processes 20 \
+                           --num-testing-processes 5 \
+                           --no-full \
+                           --no-exclude-centering-frame \
+                           --tau 0.0001 \
+                           --gamma 0.9 \
+                           --critic-l2-reg 0 \
+                           --min-buffer-length 1000 \
+                           --integrator-accuracy 1e-3 \
+                           --max-env-traj 100 \
+                           --experiment-name "experiment_name"
