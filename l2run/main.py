@@ -195,7 +195,7 @@ def build_train_args(sub_parsers):
     # parser.add_argument('--actor-lr', type=float, default=1e-4)
     # parser.add_argument('--critic-lr', type=float, default=1e-3)
     boolean_flag(parser, 'popart', default=False)
-    parser.add_argument('--gamma', type=float, default=0.99)
+    parser.add_argument('--gamma', type=float, default=0.9)
     parser.add_argument('--tau', type=float, default=0.001)
     parser.add_argument('--reward-scale', type=float, default=1.)
     parser.add_argument('--clip-norm', type=float, default=None)
@@ -245,7 +245,7 @@ def build_test_args(sub_parsers):
     boolean_flag(parser, 'render', default=True)
     boolean_flag(parser, 'normalize-observations', default=False)
     parser.add_argument('--seed', help='RNG seed', type=int, default=0)
-    parser.add_argument('--gamma', type=float, default=0.99)
+    parser.add_argument('--gamma', type=float, default=0.9)
     parser.add_argument('--reward-scale', type=float, default=1.)
     parser.add_argument('--nb-episodes', type=int, default=20)
     # per epoch cycle and MPI worker
