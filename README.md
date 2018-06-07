@@ -62,7 +62,7 @@ chmod +x osim/run.sh
 Or manually:
 ```sh
 python ${ROOT}/osim/main.py --batch-size 200 \
-							--nb-epochs 1000 \
+                            --nb-epochs 1000 \
                             --nb-epoch-cycles 1000 \
                             --nb-episodes 5 \
                             --episode-length 1000 \
