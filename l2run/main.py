@@ -218,6 +218,7 @@ def build_train_args(sub_parsers):
     parser.add_argument('--action-repeat', type=int, default=1)
     boolean_flag(parser, 'flip-state', default=False)
     parser.add_argument('--num-processes', type=int, default=1)
+    parser.add_argument('--num-testing-processes', type=int, default=1)
     parser.add_argument('--experiment-name', type=str, default="")
     boolean_flag(parser, 'evaluation', default=False)
     # environment wrapper args
