@@ -174,7 +174,8 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
     # Split work among workers
     nb_episodes_per_worker = nb_episodes // num_processes
 
-    workers = [SamplingWorker(actor,
+    workers = [SamplingWorker(i,
+                              actor,
                               critic,
                               episode_length,
                               nb_episodes_per_worker,
@@ -245,17 +246,22 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
         global_step = 0
         obs = env.reset()
         agent.reset()
+
+        # Processes waiting for a new sampling task
+        waiting_indices = [i for i in range(num_processes)]
         for epoch in range(nb_epochs):
             for cycle in range(nb_epoch_cycles):
                 actor_ws = get_parameters()
                 # Run parallel sampling
-                for i in range(num_processes):
+                for i in waiting_indices:
                     inputQs[i].put(('sample', actor_ws))
                     events[i].set()  # Notify worker: sample baby, sample!
+                waiting_indices.clear()
 
                 # Collect results when ready
                 for i in range(num_processes_to_wait):
-                    pid, transitions = outputQ.get()
+                    process_index, transitions = outputQ.get()
+                    waiting_indices.append(process_index)
                     print(
                         'Collecting transition samples from Worker {}/{}'.format(i+1, num_processes_to_wait))
                     for t in transitions:
@@ -307,6 +313,7 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
 
 class SamplingWorker(Process):
     def __init__(self,
+                 process_index,
                  actor,
                  critic,
                  episode_length,
@@ -335,6 +342,7 @@ class SamplingWorker(Process):
                  action_noise_prob=0.7):
         # Invoke parent constructor BEFORE doing anything!!
         Process.__init__(self)
+        self.process_index = process_index
         self.actor = actor
         self.critic = critic
         self.episode_length = episode_length
@@ -419,7 +427,7 @@ class SamplingWorker(Process):
                     set_parameters(actor_ws)
                     # Do sampling
                     transitions = sampling_fn()
-                    self.outputQ.put((os.getpid(), transitions))
+                    self.outputQ.put((self.process_index, transitions))
 
                     # update number of trajectories
                     num_traj += self.nb_episodes
