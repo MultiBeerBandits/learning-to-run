@@ -406,8 +406,7 @@ class SamplingWorker(Process):
 
         # Create OU Noise
         action_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(nb_actions),
-                                                    sigma=0.2 *
-                                                    np.ones(nb_actions),
+                                                    sigma=0.2, 
                                                     theta=0.1)
 
         # Create Parameter Noise
@@ -473,6 +472,8 @@ def make_sampling_fn(agent, env, episode_length, action_repeat, max_action, nb_e
             # draw a coin for selecting between param noise and action noise
             apply_action_noise = np.random.uniform() < action_noise_prob
             apply_param_noise = not apply_action_noise
+            if apply_param_noise:
+                agent.update_param_noise_stddev()
             for t in range(episode_length):
                 # Select action a_t according to current policy and
                 # exploration noise

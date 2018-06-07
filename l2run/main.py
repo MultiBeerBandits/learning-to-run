@@ -71,7 +71,7 @@ def run(seed, noise_type, layer_norm, evaluation, flip_state,
     # Parse noise_type
     nb_actions = env.action_space.shape[-1]
     action_noise = OrnsteinUhlenbeckActionNoise(
-        mu=np.zeros(nb_actions), sigma=0.2*np.ones(nb_actions), theta=0.1)
+        mu=np.zeros(nb_actions), sigma=0.2, theta=0.1)
 
     # Configure components.
     memory = ReplayBufferFlip(int(5e6),
