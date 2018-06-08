@@ -252,7 +252,7 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
         for epoch in range(nb_epochs):
             for cycle in range(nb_epoch_cycles):
                 # If we have sampling workers waiting, dispatch a sampling job
-                if not waiting_indices:
+                if waiting_indices:
                     actor_ws = get_parameters()
                     # Run parallel sampling
                     for i in waiting_indices:
