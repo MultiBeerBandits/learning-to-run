@@ -251,12 +251,14 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
         waiting_indices = [i for i in range(num_processes)]
         for epoch in range(nb_epochs):
             for cycle in range(nb_epoch_cycles):
-                actor_ws = get_parameters()
-                # Run parallel sampling
-                for i in waiting_indices:
-                    inputQs[i].put(('sample', actor_ws))
-                    events[i].set()  # Notify worker: sample baby, sample!
-                waiting_indices.clear()
+                # If we have sampling workers waiting, dispatch a sampling job
+                if not waiting_indices:
+                    actor_ws = get_parameters()
+                    # Run parallel sampling
+                    for i in waiting_indices:
+                        inputQs[i].put(('sample', actor_ws))
+                        events[i].set()  # Notify worker: sample baby, sample!
+                    waiting_indices.clear()
 
                 # Collect results when ready
                 if num_processes_to_wait == 0:
@@ -281,7 +283,7 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
 
                 # Training phase
                 if agent.memory.nb_entries > min_buffer_length:
-                    for t_train in range(nb_train_steps):
+                    for _ in range(nb_train_steps):
                         critic_loss, actor_loss = agent.train()
                         agent.update_target_net()
 
