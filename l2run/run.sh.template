@@ -7,8 +7,8 @@ python ${ROOT}/l2run/main.py train --batch-size 200 \
                            --nb-episodes 40 \
                            --episode-length 10000 \
                            --nb-train-steps 100 \
-                           --eval-freq 500 \
-                           --save-freq 500 \
+                           --eval-freq 100 \
+                           --save-freq 100 \
                            --nb-eval-episodes 10 \
                            --action-repeat 5 \
                            --reward-scale 10 \
