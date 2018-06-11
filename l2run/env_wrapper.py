@@ -228,6 +228,7 @@ class L2RunEnvWrapper(gym.Wrapper):
             names += [joint + "_" + var for (joint, var) in product(["hip_left","hip_right","knee_left","knee_right","ankle_left","ankle_right","back"], ["rz", "vrz","arz"])]
             names += ["ground_pelvis_rot", "ground_pelvis_vel_rot","ground_pelvis_acc_rot"]
             names += [body_part + "_" + var for (body_part, var) in product(["head", "torso", "toes_left", "toes_right", "talus_left", "talus_right"], ["x", "y", "vx", "vy", "ax", "ay", "r", "vr", "ar"])]
+            names += [muscle + "_" + var for (muscle,var) in product(["hamstrings_left","hamstrings_right","bifemsh_left", "bifemsh_right", "glut_max_left", "glut_max_right","iliopsoas_left", "iliopsoas_right", "rect_fem_left", "rect_fem_right", "vasti_left", "vasti_right","gastroc_left", "gastroc_right", "soleus_left", "soleus_right", "tib_ant_left", "tib_ant_right"], ["activation", "fiber_length"])]
             names += ["com_x", "com_y", "com_vel_x", "com_vel_y"]  
             names += ["pelvis_vel_x", "pelvis_vel_y"]          
         else:
