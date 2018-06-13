@@ -1,9 +1,9 @@
 # Ask git the project root folder
 ROOT=`git rev-parse --show-toplevel`
 
-python ${ROOT}/l2run/main.py train --batch-size 200 \
-                           --nb-epochs 10000 \
-                           --nb-epoch-cycles 1000 \
+python ${ROOT}/l2run/main.py train --batch-size 600 \
+                           --nb-epochs 100000 \
+                           --nb-epoch-cycles 10000 \
                            --nb-episodes 40 \
                            --episode-length 10000 \
                            --nb-train-steps 100 \
@@ -24,4 +24,4 @@ python ${ROOT}/l2run/main.py train --batch-size 200 \
                            --min-buffer-length 1000 \
                            --integrator-accuracy 1e-3 \
                            --max-env-traj 100 \
-                           --experiment-name "full_state"
+                           --experiment-name "full_state_large_batch"

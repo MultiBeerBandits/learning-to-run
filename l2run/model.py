@@ -18,7 +18,7 @@ class Actor(Model):
             if reuse:
                 scope.reuse_variables()
             x = obs
-            x = tf.layers.dense(x, 128, kernel_initializer=xavier)
+            x = tf.layers.dense(x, 150, kernel_initializer=xavier)
             if self.layer_norm:
                 x = tc.layers.layer_norm(x, center=True, scale=True)
             x = tf.nn.elu(x)
