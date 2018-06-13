@@ -74,7 +74,7 @@ def run(seed, noise_type, layer_norm, evaluation, flip_state,
         mu=np.zeros(nb_actions), sigma=0.2, theta=0.1)
 
     # Configure components.
-    memory = ReplayBufferFlip(int(5e7),
+    memory = ReplayBufferFlip(int(1e7),
                               flip_state,
                               env.get_observation_names(),
                               env.action_space.shape,
