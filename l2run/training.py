@@ -127,8 +127,8 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
           critic, memory, gamma, normalize_returns, normalize_observations,
           critic_l2_reg, action_noise, popart, clip_norm,
           batch_size, reward_scale, action_repeat, full, exclude_centering_frame,
-          visualize, fail_reward, num_processes, num_testing_processes, learning_session, min_buffer_length,
-          integrator_accuracy=5e-5, max_env_traj=100, tau=0.01):
+          visualize, fail_reward, num_processes, num_processes_to_wait, num_testing_processes,
+          learning_session, min_buffer_length, integrator_accuracy=5e-5, max_env_traj=100, tau=0.01):
     """
     Parameters
     ----------
@@ -174,7 +174,8 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
     # Split work among workers
     nb_episodes_per_worker = nb_episodes // num_processes
 
-    workers = [SamplingWorker(actor,
+    workers = [SamplingWorker(i,
+                              actor,
                               critic,
                               episode_length,
                               nb_episodes_per_worker,
@@ -230,7 +231,6 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
     # Start training loop
     with U.single_threaded_session() as sess:
         agent.initialize(sess)
-        num_wait_processes = num_processes // 2 if num_processes > 1 else 1
 
         writer = tf.summary.FileWriter(log_dir)
         writer.add_graph(sess.graph)
@@ -246,26 +246,44 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
         global_step = 0
         obs = env.reset()
         agent.reset()
+
+        # Processes waiting for a new sampling task
+        waiting_indices = [i for i in range(num_processes)]
         for epoch in range(nb_epochs):
             for cycle in range(nb_epoch_cycles):
-                actor_ws = get_parameters()
-                # Run parallel sampling
-                for i in range(num_processes):
-                    inputQs[i].put(('sample', actor_ws))
-                    events[i].set()  # Notify worker: sample baby, sample!
+                # If we have sampling workers waiting, dispatch a sampling job
+                if waiting_indices:
+                    actor_ws = get_parameters()
+                    # Run parallel sampling
+                    for i in waiting_indices:
+                        inputQs[i].put(('sample', actor_ws))
+                        events[i].set()  # Notify worker: sample baby, sample!
+                    waiting_indices.clear()
 
                 # Collect results when ready
-                for i in range(num_wait_processes):
-                    pid, transitions = outputQ.get()
-                    print(
-                        'Collecting transition samples from Worker {}/{}'.format(i+1, num_wait_processes))
-                    for t in transitions:
-                        agent.store_transition(*t)
+                if num_processes_to_wait == 0:
+                    try:
+                        process_index, transitions = outputQ.get_nowait()
+                        waiting_indices.append(process_index)
+                        print('Collecting transition samples from Worker {}'.format(
+                            process_index))
+                        for t in transitions:
+                            agent.store_transition(*t)
+                    except queue.Empty:
+                        # No sampling ready, keep on training.
+                        pass
+                else:
+                    for i in range(num_processes_to_wait):
+                        process_index, transitions = outputQ.get()
+                        waiting_indices.append(process_index)
+                        print(
+                            'Collecting transition samples from Worker {}/{}'.format(i+1, num_processes_to_wait))
+                        for t in transitions:
+                            agent.store_transition(*t)
 
                 # Training phase
                 if agent.memory.nb_entries > min_buffer_length:
-                    print("Starting traning phase . . .")
-                    for t_train in range(nb_train_steps):
+                    for _ in range(nb_train_steps):
                         critic_loss, actor_loss = agent.train()
                         agent.update_target_net()
 
@@ -273,7 +291,6 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                         stats.add_critic_loss(critic_loss, global_step)
                         stats.add_actor_loss(actor_loss, global_step)
                         global_step += 1
-                    print("End training phase")
 
                     # Evaluation phase
                     if cycle % eval_freq == 0:
@@ -308,6 +325,7 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
 
 class SamplingWorker(Process):
     def __init__(self,
+                 process_index,
                  actor,
                  critic,
                  episode_length,
@@ -336,6 +354,7 @@ class SamplingWorker(Process):
                  action_noise_prob=0.7):
         # Invoke parent constructor BEFORE doing anything!!
         Process.__init__(self)
+        self.process_index = process_index
         self.actor = actor
         self.critic = critic
         self.episode_length = episode_length
@@ -381,7 +400,7 @@ class SamplingWorker(Process):
 
         # Create OU Noise
         action_noise = OrnsteinUhlenbeckActionNoise(mu=np.zeros(nb_actions),
-                                                    sigma=0.2, 
+                                                    sigma=0.2,
                                                     theta=0.1)
 
         # Create Parameter Noise
@@ -420,7 +439,7 @@ class SamplingWorker(Process):
                     set_parameters(actor_ws)
                     # Do sampling
                     transitions = sampling_fn()
-                    self.outputQ.put((os.getpid(), transitions))
+                    self.outputQ.put((self.process_index, transitions))
 
                     # update number of trajectories
                     num_traj += self.nb_episodes
