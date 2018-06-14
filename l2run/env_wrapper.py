@@ -173,20 +173,20 @@ class L2RunEnvWrapper(gym.Wrapper):
             res += [state_desc["body_pos"][body_part][1]] # y coord
             res += state_desc["body_vel"][body_part][0:2]
             res += state_desc["body_acc"][body_part][0:2]
-            res += state_desc["body_pos_rot"][body_part][2:]
-            res += state_desc["body_vel_rot"][body_part][2:]
-            res += state_desc["body_acc_rot"][body_part][2:]
+            # res += state_desc["body_pos_rot"][body_part][2:]
+            # res += state_desc["body_vel_rot"][body_part][2:]
+            # res += state_desc["body_acc_rot"][body_part][2:]
 
         # muscles
         #'hamstrings_r', 'bifemsh_r', 'glut_max_r', 'iliopsoas_r', 'rect_fem_r', 'vasti_r', 'gastroc_r', 'soleus_r', 'tib_ant_r', 'hamstrings_l', 'bifemsh_l', 'glut_max_l', 'iliopsoas_l', 'rect_fem_l', 'vasti_l', 'gastroc_l', 'soleus_l', 'tib_ant_l'
-        for muscle in ["hamstrings_l","hamstrings_r","bifemsh_l",
-                       "bifemsh_r", "glut_max_l", "glut_max_r",
-                       "iliopsoas_l", "iliopsoas_r", "rect_fem_l",
-                       "rect_fem_r", "vasti_l", "vasti_r","gastroc_l",
-                       "gastroc_r", "soleus_l", "soleus_r", "tib_ant_l",
-                       "tib_ant_r"]:
-            res += [state_desc["muscles"][muscle]["activation"]]
-            res += [state_desc["muscles"][muscle]["fiber_length"]]
+        # for muscle in ["hamstrings_l","hamstrings_r","bifemsh_l",
+        #                "bifemsh_r", "glut_max_l", "glut_max_r",
+        #                "iliopsoas_l", "iliopsoas_r", "rect_fem_l",
+        #                "rect_fem_r", "vasti_l", "vasti_r","gastroc_l",
+        #                "gastroc_r", "soleus_l", "soleus_r", "tib_ant_l",
+        #                "tib_ant_r"]:
+        #     res += [state_desc["muscles"][muscle]["activation"]]
+        #     res += [state_desc["muscles"][muscle]["fiber_length"]]
 
         # center in pelvis reference also the center of mass
         res += [state_desc["misc"]["mass_center_pos"][0] - pelvis_x] # x coord centered
@@ -227,8 +227,8 @@ class L2RunEnvWrapper(gym.Wrapper):
             names = ["pelvis_x", "pelvis_y"]
             names += [joint + "_" + var for (joint, var) in product(["hip_left","hip_right","knee_left","knee_right","ankle_left","ankle_right","back"], ["rz", "vrz","arz"])]
             names += ["ground_pelvis_rot", "ground_pelvis_vel_rot","ground_pelvis_acc_rot"]
-            names += [body_part + "_" + var for (body_part, var) in product(["head", "torso", "toes_left", "toes_right", "talus_left", "talus_right"], ["x", "y", "vx", "vy", "ax", "ay", "r", "vr", "ar"])]
-            names += [muscle + "_" + var for (muscle,var) in product(["hamstrings_left","hamstrings_right","bifemsh_left", "bifemsh_right", "glut_max_left", "glut_max_right","iliopsoas_left", "iliopsoas_right", "rect_fem_left", "rect_fem_right", "vasti_left", "vasti_right","gastroc_left", "gastroc_right", "soleus_left", "soleus_right", "tib_ant_left", "tib_ant_right"], ["activation", "fiber_length"])]
+            names += [body_part + "_" + var for (body_part, var) in product(["head", "torso", "toes_left", "toes_right", "talus_left", "talus_right"], ["x", "y", "vx", "vy", "ax", "ay"])] #"r", "vr", "ar"])]
+            #names += [muscle + "_" + var for (muscle,var) in product(["hamstrings_left","hamstrings_right","bifemsh_left", "bifemsh_right", "glut_max_left", "glut_max_right","iliopsoas_left", "iliopsoas_right", "rect_fem_left", "rect_fem_right", "vasti_left", "vasti_right","gastroc_left", "gastroc_right", "soleus_left", "soleus_right", "tib_ant_left", "tib_ant_right"], ["activation", "fiber_length"])]
             names += ["com_x", "com_y", "com_vel_x", "com_vel_y"]  
             names += ["pelvis_vel_x", "pelvis_vel_y"]          
         else:
