@@ -216,7 +216,7 @@ class L2RunEnvWrapper(gym.Wrapper):
             lig_pen += lig.calcLimitForce(self.env.osim_model.state) ** 2
         penalty = math.sqrt(lig_pen) * 10e-8
         speed = state_desc["joint_pos"]["ground_pelvis"][1] - prev_state_desc["joint_pos"]["ground_pelvis"][1]
-        return speed - penalty + 0.001
+        return - speed - penalty + 0.001
 
     # utility methods that can be used outside for implementing actions flip
     # returns all the names of the observation vector values in order
