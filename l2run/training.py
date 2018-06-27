@@ -261,10 +261,20 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                     waiting_indices.clear()
 
                 # Collect results when ready
-                if num_processes_to_wait == 0:
+                for i in range(num_processes_to_wait):
+                    process_index, transitions = outputQ.get()
+                    waiting_indices.append(process_index)
+                    print(
+                        'Collecting transition samples from Worker {}/{}'.format(i+1, num_processes_to_wait))
+                    for t in transitions:
+                        agent.store_transition(*t)
+
+                #try to collect other samples if available
+                for i in range(num_processes):
                     try:
                         process_index, transitions = outputQ.get_nowait()
-                        waiting_indices.append(process_index)
+                        if process_index not in waiting_indices:
+                            waiting_indices.append(process_index)
                         print('Collecting transition samples from Worker {}'.format(
                             process_index))
                         for t in transitions:
@@ -272,14 +282,6 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                     except queue.Empty:
                         # No sampling ready, keep on training.
                         pass
-                else:
-                    for i in range(num_processes_to_wait):
-                        process_index, transitions = outputQ.get()
-                        waiting_indices.append(process_index)
-                        print(
-                            'Collecting transition samples from Worker {}/{}'.format(i+1, num_processes_to_wait))
-                        for t in transitions:
-                            agent.store_transition(*t)
 
                 # Training phase
                 if agent.memory.nb_entries > min_buffer_length:
