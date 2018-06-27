@@ -9,9 +9,10 @@ from itertools import product
 import opensim
 import math
 
+
 class L2RunEnvWrapper(gym.Wrapper):
 
-    def __init__(self, visualize, integrator_accuracy, full=False, action_repeat=5, fail_reward=-0.2, 
+    def __init__(self, visualize, integrator_accuracy, full=False, action_repeat=5, fail_reward=-0.2,
                  exclude_centering_frame=False):
         """
         Initialize the environment:
@@ -37,9 +38,9 @@ class L2RunEnvWrapper(gym.Wrapper):
         else:
             self.get_observation = self.get_observation_basic
 
-        self.observation_space = ( [0] * self.get_observation_space_size(), [0] * self.get_observation_space_size() )
+        self.observation_space = (
+            [0] * self.get_observation_space_size(), [0] * self.get_observation_space_size())
         self.observation_space = convert_to_gym(self.observation_space)
-        
 
     def reset(self, **kwargs):
         self.env_step = 0
@@ -56,6 +57,7 @@ class L2RunEnvWrapper(gym.Wrapper):
         self.env.seed(seed)
 
     def step(self, action):
+        action = np.ravel(action)
         total_reward = 0.
         for _ in range(self.action_repeat):
             observation, _, done, _ = self.env.step(action)
@@ -71,7 +73,6 @@ class L2RunEnvWrapper(gym.Wrapper):
         #total_reward *= self.reward_scale
         return observation, total_reward, done, None
 
-
     def is_done(self):
         state_desc = self.env.get_state_desc()
         return state_desc["body_pos"]["pelvis"][1] < 0.7
@@ -86,7 +87,7 @@ class L2RunEnvWrapper(gym.Wrapper):
         state_desc = self.env.get_state_desc()
         return state_desc["body_pos"]["pelvis"][0]
 
-    ## Values in the observation vector
+    # Values in the observation vector
     def get_observation_basic(self):
         """
         Returns the basic observation vector with positions and velocities
@@ -97,7 +98,7 @@ class L2RunEnvWrapper(gym.Wrapper):
         # Augmented environment from the L2R challenge
         res = []
         # obtain pelvis x,y coordinates
-        # x coordinate is used to center the x coord of other 
+        # x coordinate is used to center the x coord of other
         # observations, and it is added to the observation vector
         # only if required
         pelvis_x = state_desc["body_pos"]["pelvis"][0]
@@ -106,34 +107,36 @@ class L2RunEnvWrapper(gym.Wrapper):
             res += [pelvis_x]
         res += [pelvis_y]
 
-        for joint in ["hip_l","hip_r","knee_l","knee_r","ankle_l","ankle_r"]:
+        for joint in ["hip_l", "hip_r", "knee_l", "knee_r", "ankle_l", "ankle_r"]:
             res += state_desc["joint_pos"][joint]
             res += state_desc["joint_vel"][joint]
-        
+
         # ground pelvis rotation and rotation speed
         res += state_desc["joint_pos"]["ground_pelvis"][0:1]
         res += state_desc["joint_vel"]["ground_pelvis"][0:1]
 
         # center body parts poses in pelvis reference
         for body_part in ["head", "torso", "toes_l", "toes_r", "talus_l", "talus_r"]:
-            res += [state_desc["body_pos"][body_part][0] - pelvis_x] # x coord centerd
-            res += [state_desc["body_pos"][body_part][1]] # y coord
+            res += [state_desc["body_pos"][body_part]
+                    [0] - pelvis_x]  # x coord centerd
+            res += [state_desc["body_pos"][body_part][1]]  # y coord
         # center in pelvis reference also the center of mass
-        res += [state_desc["misc"]["mass_center_pos"][0] - pelvis_x] # x coord centered
-        res += [state_desc["misc"]["mass_center_pos"][1]] # y coord
+        res += [state_desc["misc"]["mass_center_pos"]
+                [0] - pelvis_x]  # x coord centered
+        res += [state_desc["misc"]["mass_center_pos"][1]]  # y coord
         res += state_desc["misc"]["mass_center_vel"]
 
         # add pelvis x and y speed
         res += state_desc["body_vel"]["pelvis"][0:2]
 
-        # strenght of left and right psoas, nex obstacle distance x from pelvis, y of the 
+        # strenght of left and right psoas, nex obstacle distance x from pelvis, y of the
         # center relative to the ground, radius
         # here are set to 0
         # res += [0]*5 TODO
 
         return res
 
-    ## Values in the observation vector
+    # Values in the observation vector
     def get_observation_full(self):
         """
         Returns the full observation vector with positions, velocities, accelerations and muscles
@@ -145,7 +148,7 @@ class L2RunEnvWrapper(gym.Wrapper):
         res = []
         pelvis = None
 
-        for body_part in ["pelvis", "head","torso","toes_l","toes_r","talus_l","talus_r"]:
+        for body_part in ["pelvis", "head", "torso", "toes_l", "toes_r", "talus_l", "talus_r"]:
             # if self.prosthetic and body_part in ["toes_r","talus_r"]:
             #     res += [0] * 9
             #     continue
@@ -156,7 +159,7 @@ class L2RunEnvWrapper(gym.Wrapper):
             cur += state_desc["body_pos_rot"][body_part][2:]
             cur += state_desc["body_vel_rot"][body_part][2:]
             cur += state_desc["body_acc_rot"][body_part][2:]
-            # store pelvis pose in pelvis var and use it for centering of 
+            # store pelvis pose in pelvis var and use it for centering of
             # body poses. If asked also add pelvis to obs vector
             if body_part == "pelvis":
                 pelvis = cur
@@ -166,15 +169,15 @@ class L2RunEnvWrapper(gym.Wrapper):
                 # otherwise keep only velocities and acc of pelvis
                 else:
                     res += cur[2:]
-            # if it is not pelvis, then brings everithing in the pelvis 
+            # if it is not pelvis, then brings everithing in the pelvis
             # reference system
             else:
                 cur_upd = cur
                 cur_upd[:2] = [cur[i] - pelvis[i] for i in range(2)]
-                cur_upd[6:7] = [cur[i] - pelvis[i] for i in range(6,7)]
+                cur_upd[6:7] = [cur[i] - pelvis[i] for i in range(6, 7)]
                 res += cur
 
-        for joint in ["ankle_l","ankle_r","back","hip_l","hip_r","knee_l","knee_r"]:
+        for joint in ["ankle_l", "ankle_r", "back", "hip_l", "hip_r", "knee_l", "knee_r"]:
             res += state_desc["joint_pos"][joint]
             res += state_desc["joint_vel"][joint]
             res += state_desc["joint_acc"][joint]
@@ -184,8 +187,11 @@ class L2RunEnvWrapper(gym.Wrapper):
             res += [state_desc["muscles"][muscle]["fiber_length"]]
             res += [state_desc["muscles"][muscle]["fiber_velocity"]]
 
-        cm_pos = [state_desc["misc"]["mass_center_pos"][i] - pelvis[i] for i in range(2)]
-        res = res + cm_pos + state_desc["misc"]["mass_center_vel"] + state_desc["misc"]["mass_center_acc"]
+        cm_pos = [state_desc["misc"]["mass_center_pos"][i] - pelvis[i]
+                  for i in range(2)]
+        res = res + cm_pos + \
+            state_desc["misc"]["mass_center_vel"] + \
+            state_desc["misc"]["mass_center_acc"]
 
         return res
 
@@ -202,11 +208,13 @@ class L2RunEnvWrapper(gym.Wrapper):
         # Compute ligaments penalty
         lig_pen = 0
         # Get ligaments
-        for j in range(20, 26): 
-            lig = opensim.CoordinateLimitForce.safeDownCast(self.env.osim_model.forceSet.get(j))
+        for j in range(20, 26):
+            lig = opensim.CoordinateLimitForce.safeDownCast(
+                self.env.osim_model.forceSet.get(j))
             lig_pen += lig.calcLimitForce(self.env.osim_model.state) ** 2
         penalty = math.sqrt(lig_pen) * 10e-8
-        speed = state_desc["joint_pos"]["ground_pelvis"][1] - prev_state_desc["joint_pos"]["ground_pelvis"][1]
+        speed = state_desc["joint_pos"]["ground_pelvis"][1] - \
+            prev_state_desc["joint_pos"]["ground_pelvis"][1]
         return speed - penalty + 0.001
 
     # utility methods that can be used outside for implementing actions flip
@@ -215,14 +223,19 @@ class L2RunEnvWrapper(gym.Wrapper):
     # rigth and left strings are put in flippable features of the obs space
     def get_observation_names(self):
         if self.full:
-            names = [body_part + "_" + var for (body_part, var) in product(['pelvis', 'head', 'torso', 'toes_left', 'toes_right', 'talus_left', 'talus_right'], ['x', 'y', 'vx', 'vy', 'ax', 'ay', 'rz', 'vrz', 'arz'])]
-            names += [body_part + "_" + var for (body_part, var) in product(['ankle_left', 'ankle_right', 'back', 'hip_left', 'hip_right', 'knee_left', 'knee_right'], ['rz', 'vrz', 'arz'])]
-            names += ['center_of_mass' + var for var in ['x', 'y', 'vx', 'vy', 'ax', 'ay', 'ofg']]
+            names = [body_part + "_" + var for (body_part, var) in product(['pelvis', 'head', 'torso', 'toes_left',
+                                                                            'toes_right', 'talus_left', 'talus_right'], ['x', 'y', 'vx', 'vy', 'ax', 'ay', 'rz', 'vrz', 'arz'])]
+            names += [body_part + "_" + var for (body_part, var) in product(
+                ['ankle_left', 'ankle_right', 'back', 'hip_left', 'hip_right', 'knee_left', 'knee_right'], ['rz', 'vrz', 'arz'])]
+            names += ['center_of_mass' + var for var in ['x',
+                                                         'y', 'vx', 'vy', 'ax', 'ay', 'ofg']]
         else:
             names = ["pelvis_x", "pelvis_y"]
-            names += [joint + "_" + var for (joint, var) in product(["hip_left","hip_right","knee_left","knee_right","ankle_left","ankle_right"], ["rz", "vrz"])]
+            names += [joint + "_" + var for (joint, var) in product(
+                ["hip_left", "hip_right", "knee_left", "knee_right", "ankle_left", "ankle_right"], ["rz", "vrz"])]
             names += ["ground_pelvis_rot", "ground_pelvis_vel_rot"]
-            names += [body_part + "_" + var for (body_part, var) in product(["head", "torso", "toes_left", "toes_right", "talus_left", "talus_right"], ["x", "y"])]
+            names += [body_part + "_" + var for (body_part, var) in product(
+                ["head", "torso", "toes_left", "toes_right", "talus_left", "talus_right"], ["x", "y"])]
             names += ["com_x", "com_y", "com_vel_x", "com_vel_y"]
             names += ["pelvis_vel_x", "pelvis_vel_y"]
         # if exclude_centering_frame need to remove x and y of pelvis (first 2 el)
@@ -230,7 +243,9 @@ class L2RunEnvWrapper(gym.Wrapper):
             names = names[1:]
         assert len(names) == self.get_observation_space_size()
         return names
-            
+
+
 def create_environment(visualize, full, action_repeat, fail_reward, exclude_centering_frame, integrator_accuracy=5e-5):
-    env = L2RunEnvWrapper(visualize, integrator_accuracy, full, action_repeat, fail_reward, exclude_centering_frame)
+    env = L2RunEnvWrapper(visualize, integrator_accuracy, full,
+                          action_repeat, fail_reward, exclude_centering_frame)
     return env
