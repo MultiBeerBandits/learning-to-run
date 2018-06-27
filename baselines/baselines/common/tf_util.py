@@ -6,6 +6,7 @@ import functools
 import collections
 import multiprocessing
 
+
 def switch(condition, then_expression, else_expression):
     """Switches between two operations depending on a scalar value (int or bool).
     Note that both `then_expression` and `else_expression`
@@ -27,6 +28,7 @@ def switch(condition, then_expression, else_expression):
 # Extras
 # ================================================================
 
+
 def lrelu(x, leak=0.2):
     f1 = 0.5 * (1 + leak)
     f2 = 0.5 * (1 - leak)
@@ -35,6 +37,7 @@ def lrelu(x, leak=0.2):
 # ================================================================
 # Mathematical utils
 # ================================================================
+
 
 def huber_loss(x, delta=1.0):
     """Reference: https://en.wikipedia.org/wiki/Huber_loss"""
@@ -47,6 +50,7 @@ def huber_loss(x, delta=1.0):
 # ================================================================
 # Global session
 # ================================================================
+
 
 def make_session(num_cpu=None, make_default=False):
     """Returns a session that will use <num_cpu> CPU's only"""
@@ -61,9 +65,11 @@ def make_session(num_cpu=None, make_default=False):
     else:
         return tf.Session(config=tf_config)
 
+
 def single_threaded_session():
     """Returns a session which will only use a single CPU"""
     return make_session(num_cpu=1)
+
 
 def in_session(f):
     @functools.wraps(f)
@@ -72,7 +78,9 @@ def in_session(f):
             f(*args, **kwargs)
     return newfunc
 
+
 ALREADY_INITIALIZED = set()
+
 
 def initialize():
     """Initialize all the uninitialized variables in the global scope."""
@@ -84,6 +92,7 @@ def initialize():
 # Model components
 # ================================================================
 
+
 def normc_initializer(std=1.0):
     def _initializer(shape, dtype=None, partition_info=None):  # pylint: disable=W0613
         out = np.random.randn(*shape).astype(np.float32)
@@ -91,11 +100,13 @@ def normc_initializer(std=1.0):
         return tf.constant(out)
     return _initializer
 
+
 def conv2d(x, num_filters, name, filter_size=(3, 3), stride=(1, 1), pad="SAME", dtype=tf.float32, collections=None,
            summary_tag=None):
     with tf.variable_scope(name):
         stride_shape = [1, stride[0], stride[1], 1]
-        filter_shape = [filter_size[0], filter_size[1], int(x.get_shape()[3]), num_filters]
+        filter_shape = [filter_size[0], filter_size[1],
+                        int(x.get_shape()[3]), num_filters]
 
         # there are "num input feature maps * filter height * filter width"
         # inputs to each hidden unit
@@ -123,6 +134,7 @@ def conv2d(x, num_filters, name, filter_size=(3, 3), stride=(1, 1), pad="SAME", 
 # ================================================================
 # Theano-like Function
 # ================================================================
+
 
 def function(inputs, outputs, updates=None, givens=None):
     """Just like Theano function. Take a bunch of tensorflow placeholders and expressions
@@ -191,12 +203,14 @@ class _Function(object):
         # Update feed dict with givens.
         for inpt in self.givens:
             feed_dict[inpt] = feed_dict.get(inpt, self.givens[inpt])
-        results = tf.get_default_session().run(self.outputs_update, feed_dict=feed_dict)[:-1]
+        results = tf.get_default_session().run(
+            self.outputs_update, feed_dict=feed_dict)[:-1]
         return results
 
 # ================================================================
 # Flat vectors
 # ================================================================
+
 
 def var_shape(x):
     out = x.get_shape().as_list()
@@ -204,11 +218,14 @@ def var_shape(x):
         "shape function assumes that shape is fully known"
     return out
 
+
 def numel(x):
     return intprod(var_shape(x))
 
+
 def intprod(x):
     return int(np.prod(x))
+
 
 def flatgrad(loss, var_list, clip_norm=None):
     grads = tf.gradients(loss, var_list)
@@ -218,6 +235,21 @@ def flatgrad(loss, var_list, clip_norm=None):
         tf.reshape(grad if grad is not None else tf.zeros_like(v), [numel(v)])
         for (v, grad) in zip(var_list, grads)
     ])
+
+
+def assignFromFlat(var_list, values):
+    assigns = []
+    shapes = list(map(var_shape, var_list))
+
+    start = 0
+    assigns = []
+    for (shape, v) in zip(shapes, var_list):
+        size = intprod(shape)
+        assigns.append(tf.assign(v, tf.reshape(
+            values[start:start + size], shape)))
+        start += size
+    return tf.group(*assigns)
+
 
 class SetFromFlat(object):
     def __init__(self, var_list, dtype=tf.float32):
@@ -230,21 +262,26 @@ class SetFromFlat(object):
         assigns = []
         for (shape, v) in zip(shapes, var_list):
             size = intprod(shape)
-            assigns.append(tf.assign(v, tf.reshape(theta[start:start + size], shape)))
+            assigns.append(tf.assign(v, tf.reshape(
+                theta[start:start + size], shape)))
             start += size
         self.op = tf.group(*assigns)
 
     def __call__(self, theta):
         tf.get_default_session().run(self.op, feed_dict={self.theta: theta})
 
+
 class GetFlat(object):
     def __init__(self, var_list):
-        self.op = tf.concat(axis=0, values=[tf.reshape(v, [numel(v)]) for v in var_list])
+        self.op = tf.concat(
+            axis=0, values=[tf.reshape(v, [numel(v)]) for v in var_list])
 
     def __call__(self):
         return tf.get_default_session().run(self.op)
 
+
 _PLACEHOLDER_CACHE = {}  # name -> (placeholder, dtype, shape)
+
 
 def get_placeholder(name, dtype, shape):
     if name in _PLACEHOLDER_CACHE:
@@ -256,15 +293,17 @@ def get_placeholder(name, dtype, shape):
         _PLACEHOLDER_CACHE[name] = (out, dtype, shape)
         return out
 
+
 def get_placeholder_cached(name):
     return _PLACEHOLDER_CACHE[name][0]
+
 
 def flattenallbut0(x):
     return tf.reshape(x, [-1, intprod(x.get_shape().as_list()[1:])])
 
 
 # ================================================================
-# Diagnostics 
+# Diagnostics
 # ================================================================
 
 def display_var_info(vars):
@@ -272,9 +311,10 @@ def display_var_info(vars):
     count_params = 0
     for v in vars:
         name = v.name
-        if "/Adam" in name or "beta1_power" in name or "beta2_power" in name: continue
+        if "/Adam" in name or "beta1_power" in name or "beta2_power" in name:
+            continue
         count_params += np.prod(v.shape.as_list())
-        if "/b:" in name: continue    # Wx+b, bias is not interesting to look at => count params, but not print
+        if "/b:" in name:
+            continue    # Wx+b, bias is not interesting to look at => count params, but not print
         logger.info("    %s%s%s" % (name, " "*(55-len(name)), str(v.shape)))
     logger.info("Total model parameters: %0.1f million" % (count_params*1e-6))
-
