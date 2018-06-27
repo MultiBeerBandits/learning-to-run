@@ -15,7 +15,7 @@ policy) in L2Run OpenSim environment.
 
 
 def train(batch_size, gamma, horizon, seed, shift, normalize, use_rmax, use_renyi, path, delta, full,
-          action_repeat, fail_reward, exclude_centering_frame,
+          action_repeat, reward_scale, fail_reward, exclude_centering_frame,
           integrator_accuracy, num_processes):
     DIR = path + '/results/multipoisnpe' + \
         '/seed_' + str(seed)
@@ -25,7 +25,7 @@ def train(batch_size, gamma, horizon, seed, shift, normalize, use_rmax, use_reny
 
     # Maker function for OpenSim L2Run Environment
     def env_maker():
-        env = create_environment(False, full, action_repeat,
+        env = create_environment(False, full, action_repeat, reward_scale,
                                  fail_reward, exclude_centering_frame, integrator_accuracy)
         env.reset()
         env.seed(seed)
@@ -90,6 +90,7 @@ if __name__ == '__main__':
     boolean_flag(parser, 'full', default=False, help="use full observation")
     boolean_flag(parser, 'exclude-centering-frame', default=False,
                  help="exclude pelvis from observation vec")
+    parser.add_argument('--reward-scale', type=float, default=1.0)
     parser.add_argument('--fail-reward', type=float, default=-0.2)
     # Reduce accuracy -> Improve efficiency
     # Good value may be 3e-2
@@ -112,6 +113,7 @@ if __name__ == '__main__':
           delta,
           args.full,
           args.action_repeat,
+          args.reward_scale,
           args.fail_reward,
           args.exclude_centering_frame,
           args.integrator_accuracy,

@@ -15,6 +15,7 @@ PYTHONPATH=${ROOT} python ${ROOT}/l2run/pois/main.py \
                            --action-repeat 5 \
                            --no-full \
                            --exclude-centering-frame \
+                           --reward_scale 10.0 \
                            --fail-reward -0.2 \
                            --integrator-accuracy "5e-5" \
                            --num-processes 1

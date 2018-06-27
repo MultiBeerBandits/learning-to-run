@@ -12,8 +12,8 @@ import math
 
 class L2RunEnvWrapper(gym.Wrapper):
 
-    def __init__(self, visualize, integrator_accuracy, full=False, action_repeat=5, fail_reward=-0.2,
-                 exclude_centering_frame=False):
+    def __init__(self, visualize, integrator_accuracy, full=False, action_repeat=5, reward_scale=1.0,
+                 fail_reward=-0.2, exclude_centering_frame=False):
         """
         Initialize the environment:
         Parameters:
@@ -30,6 +30,7 @@ class L2RunEnvWrapper(gym.Wrapper):
         self.full = full
         self.env = env
         self.action_repeat = action_repeat
+        self.reward_scale = reward_scale
         self.fail_reward = fail_reward
         self.exclude_centering_frame = exclude_centering_frame
         self.env_step = 0
@@ -70,7 +71,7 @@ class L2RunEnvWrapper(gym.Wrapper):
                     total_reward += self.fail_reward
                 break
 
-        #total_reward *= self.reward_scale
+        total_reward *= self.reward_scale
         return observation, total_reward, done, None
 
     def is_done(self):
@@ -245,7 +246,8 @@ class L2RunEnvWrapper(gym.Wrapper):
         return names
 
 
-def create_environment(visualize, full, action_repeat, fail_reward, exclude_centering_frame, integrator_accuracy=5e-5):
+def create_environment(visualize, full, action_repeat, reward_scale, fail_reward,
+                       exclude_centering_frame, integrator_accuracy=5e-5):
     env = L2RunEnvWrapper(visualize, integrator_accuracy, full,
-                          action_repeat, fail_reward, exclude_centering_frame)
+                          action_repeat, reward_scale, fail_reward, exclude_centering_frame)
     return env
