@@ -1,0 +1,20 @@
+# Ask git the project root folder
+ROOT=`git rev-parse --show-toplevel`
+
+PYTHONPATH=${ROOT} python ${ROOT}/l2run/pois/main.py \
+                           --batch-size 1 \
+                           --horizon 1 \
+                           --gamma 1.0 \
+                           --path "tmp" \
+                           --seed 1234 \
+                           --shift 0 \
+                           --normalize 1 \
+                           --use_rmax 1 \
+                           --use_renyi 0 \
+                           --delta "0.6" \
+                           --action-repeat 5 \
+                           --no-full \
+                           --exclude-centering-frame \
+                           --fail-reward -0.2 \
+                           --integrator-accuracy "5e-5" \
+                           --num-processes 1
