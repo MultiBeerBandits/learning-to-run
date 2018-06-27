@@ -1,7 +1,7 @@
 # Ask git the project root folder
 ROOT=`git rev-parse --show-toplevel`
 
-python ${ROOT}/l2run/main.py test 
+python ${ROOT}/l2run/ddpg/main.py test 
                             --nb-episodes 100 \
                             --episode-length 1000 \
                             --seed 1234 \
