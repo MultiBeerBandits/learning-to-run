@@ -386,6 +386,10 @@ class SamplingWorker(Process):
         self.integrator_accuracy = integrator_accuracy
         self.max_env_traj = max_env_traj
 
+        # apply always action noise if param noise is None
+        if param_noise is None:
+            self.action_noise_prob = 1
+
     def run(self):
         """Override Process.run()"""
         # Create environment
