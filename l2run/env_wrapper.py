@@ -59,6 +59,8 @@ class L2RunEnvWrapper(gym.Wrapper):
 
     def step(self, action):
         action = np.ravel(action)
+        # clip action
+        action = np.clip(action, 0, 1)
         total_reward = 0.
         for _ in range(self.action_repeat):
             observation, _, done, _ = self.env.step(action)
