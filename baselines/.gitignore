@@ -1,8 +1,6 @@
 *.swp
 *.pyc
-*.pkl
 *.py~
-.pytest_cache
 .DS_Store
 .idea
 
@@ -34,5 +32,4 @@ src
 .cache
 
 MUJOCO_LOG.TXT
-
-
+/script/temp

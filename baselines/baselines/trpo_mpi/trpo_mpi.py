@@ -9,8 +9,9 @@ from collections import deque
 from baselines.common.mpi_adam import MpiAdam
 from baselines.common.cg import cg
 from contextlib import contextmanager
-
-def traj_segment_generator(pi, env, horizon, stochastic):
+import numpy as np
+        
+def traj_segment_generator(pi, env, horizon, steps_per_batch, stochastic):
     # Initialize state variables
     t = 0
     ac = env.action_space.sample()
@@ -24,11 +25,11 @@ def traj_segment_generator(pi, env, horizon, stochastic):
     ep_lens = []
 
     # Initialize history arrays
-    obs = np.array([ob for _ in range(horizon)])
-    rews = np.zeros(horizon, 'float32')
-    vpreds = np.zeros(horizon, 'float32')
-    news = np.zeros(horizon, 'int32')
-    acs = np.array([ac for _ in range(horizon)])
+    obs = np.array([ob for _ in range(steps_per_batch)])
+    rews = np.zeros(steps_per_batch, 'float32')
+    vpreds = np.zeros(steps_per_batch, 'float32')
+    news = np.zeros(steps_per_batch, 'int32')
+    acs = np.array([ac for _ in range(steps_per_batch)])
     prevacs = acs.copy()
 
     while True:
@@ -37,16 +38,24 @@ def traj_segment_generator(pi, env, horizon, stochastic):
         # Slight weirdness here because we need value function at time T
         # before returning segment [0, T-1] so we get the correct
         # terminal value
-        if t > 0 and t % horizon == 0:
-            yield {"ob" : obs, "rew" : rews, "vpred" : vpreds, "new" : news,
-                    "ac" : acs, "prevac" : prevacs, "nextvpred": vpred * (1 - new),
+        if t > 0 and t % steps_per_batch == 0:
+            n_samples = sum(ep_lens)
+            yield {"ob" : obs[:n_samples], "rew" : rews[:n_samples],
+                   "vpred" : vpreds[:n_samples], "new" : news[:n_samples],
+                    "ac" : acs[:n_samples], "prevac" : prevacs[:n_samples], 
+                    "nextvpred": vpred * (1 - new),
                     "ep_rets" : ep_rets, "ep_lens" : ep_lens}
             _, vpred = pi.act(stochastic, ob)
             # Be careful!!! if you change the downstream algorithm to aggregate
             # several of these batches, then be sure to do a deepcopy
             ep_rets = []
             ep_lens = []
-        i = t % horizon
+            if not new:
+                cur_ep_ret = 0
+                cur_ep_len = 0
+                ob = env.reset()
+
+        i = t % steps_per_batch
         obs[i] = ob
         vpreds[i] = vpred
         news[i] = new
@@ -58,7 +67,7 @@ def traj_segment_generator(pi, env, horizon, stochastic):
 
         cur_ep_ret += rew
         cur_ep_len += 1
-        if new:
+        if new or i%horizon==horizon-1:
             ep_rets.append(cur_ep_ret)
             ep_lens.append(cur_ep_len)
             cur_ep_ret = 0
@@ -80,7 +89,8 @@ def add_vtarg_and_adv(seg, gamma, lam):
     seg["tdlamret"] = seg["adv"] + seg["vpred"]
 
 def learn(env, policy_fn, *,
-        timesteps_per_batch, # what to train on
+        batch_size, # what to train on
+        task_horizon,
         max_kl, cg_iters,
         gamma, lam, # advantage estimation
         entcoeff=0.0,
@@ -88,11 +98,16 @@ def learn(env, policy_fn, *,
         vf_stepsize=3e-4,
         vf_iters =3,
         max_timesteps=0, max_episodes=0, max_iters=0,  # time constraint
-        callback=None
+        callback=None,
+        weights_dir='.',
+        per_decision = True,
+        normalize = False,
+        truncate_at = np.infty
         ):
     nworkers = MPI.COMM_WORLD.Get_size()
     rank = MPI.COMM_WORLD.Get_rank()
     np.set_printoptions(precision=3)
+    timesteps_per_batch = batch_size * task_horizon
     # Setup losses and stuff
     # ----------------------------------------
     ob_space = env.observation_space
@@ -174,7 +189,7 @@ def learn(env, policy_fn, *,
 
     # Prepare for rollouts
     # ----------------------------------------
-    seg_gen = traj_segment_generator(pi, env, timesteps_per_batch, stochastic=True)
+    seg_gen = traj_segment_generator(pi, env, task_horizon, timesteps_per_batch, stochastic=True)
 
     episodes_so_far = 0
     timesteps_so_far = 0
@@ -185,6 +200,7 @@ def learn(env, policy_fn, *,
 
     assert sum([max_iters>0, max_timesteps>0, max_episodes>0])==1
 
+    
     while True:
         if callback: callback(locals(), globals())
         if max_timesteps and timesteps_so_far >= max_timesteps:
@@ -198,6 +214,14 @@ def learn(env, policy_fn, *,
         with timed("sampling"):
             seg = seg_gen.__next__()
         add_vtarg_and_adv(seg, gamma, lam)
+
+        
+        #Params
+        #"""
+        params = pi.eval_param()
+        #print(params)
+        np.save(weights_dir+'/weights_'+str(iters_so_far), params)
+        #"""
 
         # ob, ac, atarg, ret, td1ret = map(np.concatenate, (obs, acs, atargs, rets, td1rets))
         ob, ac, atarg, tdlamret = seg["ob"], seg["ac"], seg["adv"], seg["tdlamret"]
@@ -225,6 +249,7 @@ def learn(env, policy_fn, *,
             assert np.isfinite(stepdir).all()
             shs = .5*stepdir.dot(fisher_vector_product(stepdir))
             lm = np.sqrt(shs / max_kl)
+            print('DOT: %s' % np.dot(stepdir, g))
             # logger.log("lagrange multiplier:", lm, "gnorm:", np.linalg.norm(g))
             fullstep = stepdir / lm
             expectedimprove = g.dot(fullstep)
@@ -267,15 +292,209 @@ def learn(env, policy_fn, *,
 
         logger.record_tabular("ev_tdlam_before", explained_variance(vpredbefore, tdlamret))
 
-        lrlocal = (seg["ep_lens"], seg["ep_rets"]) # local values
+        lrlocal = (seg["ep_lens"], seg["ep_rets"], seg["ob"],
+                   seg["ac"],seg["rew"]) # local values
         listoflrpairs = MPI.COMM_WORLD.allgather(lrlocal) # list of tuples
-        lens, rews = map(flatten_lists, zip(*listoflrpairs))
-        lenbuffer.extend(lens)
-        rewbuffer.extend(rews)
+        lens, rews, states, actions, rewards = map(flatten_lists, zip(*listoflrpairs))
+        
+        disc_rews = []
+        start = 0
+        for ep_len in lens:
+            end = start + ep_len
+            disc = gamma + np.zeros(ep_len)
+            disc[0] = 1
+            disc = np.cumprod(disc)
+            disc_rewards = np.array(rewards[start:end]) * disc
+            disc_rews.append(np.sum(disc_rewards))
+            start = end
+            
+        #Save importance weights
+        simple_iw = pi.eval_simple_iw(states, 
+                               actions,
+                               rewards,
+                               lens,
+                               gamma=gamma,
+                               behavioral=oldpi)
+        np.save(weights_dir+'/iws_'+str(iters_so_far), simple_iw)
+        #print(len(simple_iw), simple_iw)
+        
+        #Save returns
+        ep_rets = np.array(disc_rews)
+        np.save(weights_dir+'/rets_'+str(iters_so_far), ep_rets)
+        #print(len(ep_rets), ep_rets)
+        
 
-        logger.record_tabular("EpLenMean", np.mean(lenbuffer))
-        logger.record_tabular("EpRewMean", np.mean(rewbuffer))
+        #lenbuffer.extend(lens)
+        #rewbuffer.extend(rews)
+
+        #Renyi
+        """
+        renyi_4 = np.mean(pi.eval_renyi(states, oldpi, 4))
+        #print('Renyi:', renyi)
+        #"""
+        
+        #Importance weights stats
+        """
+        avg_iw, var_iw, max_iw, ess = pi.eval_iw_stats(states, 
+                               actions,
+                               rewards,
+                               lens,
+                               gamma=gamma,
+                               behavioral=oldpi,
+                               per_decision=per_decision,
+                               normalize=normalize,
+                               truncate_at=truncate_at)
+        #"""
+        
+        #Returns stats
+        """
+        avg_ret, var_ret, max_ret = pi.eval_ret_stats(states, 
+                               actions,
+                               rewards,
+                               lens,
+                               gamma=gamma,
+                               behavioral=oldpi,
+                               per_decision=per_decision,
+                               normalize=normalize,
+                               truncate_at=truncate_at)
+        #"""
+
+        #Performance
+        #"""
+        bound_delta = .2
+        batch_size = len(lens)
+        J = pi.eval_J(states,
+                      actions,
+                      rewards,
+                      lens,
+                      gamma=gamma,
+                      behavioral=oldpi,
+                      per_decision=per_decision,
+                      normalize=normalize,
+                      truncate_at=truncate_at)
+        
+        var_J = pi.eval_var_J(states,
+                      actions,
+                      rewards,
+                      lens,
+                      gamma=gamma,
+                      behavioral=oldpi,
+                      per_decision=per_decision,
+                      normalize=normalize,
+                      truncate_at=truncate_at)
+        
+        """
+        bound = pi.eval_bound(states,
+                      actions,
+                      rewards,
+                      lens,
+                      gamma=gamma,
+                      behavioral=oldpi,
+                      per_decision=per_decision,
+                      normalize=normalize,
+                      truncate_at=truncate_at,
+                      delta=bound_delta,
+                      use_ess=True)
+        #"""
+        
+        #Sample Renyi
+        d2s = pi.eval_renyi(states, oldpi, 2)
+        d2s_by_episode = []
+        start = 0
+        for ep_len in lens:
+            end = start + ep_len
+            d2s_by_episode = np.sum(d2s[start:end])
+            start = end
+        sample_d2 = np.mean(np.exp(d2s_by_episode))
+        
+        """
+        grad_bound = pi.eval_grad_bound(states,
+                      actions,
+                      rewards,
+                      lens,
+                      gamma=gamma,
+                      behavioral=oldpi,
+                      per_decision=per_decision,
+                      normalize=normalize,
+                      truncate_at=truncate_at,
+                      delta=bound_delta,
+                      use_ess=True)
+        print(grad_bound)
+        #print('Target performance', J, '+-', np.sqrt(var_J/len(lens)))    
+        #"""
+        
+        #Gradients
+        """
+        grad_J = pi.eval_grad_J(states,
+                                       actions,
+                                       rewards,
+                                       lens,
+                                       behavioral=oldpi,
+                                       per_decision=True)
+        grad_var_J = pi.eval_grad_var_J(states,
+                                       actions,
+                                       rewards,
+                                       lens,
+                                       behavioral=oldpi,
+                                       per_decision=True)
+        print('Target performance grads', grad_J, grad_var_J)    
+        #"""
+    
+        #Student-t bound
+        """
+        bound = pi.eval_bound(states,
+                                 actions,
+                                 rewards,
+                                 lens,
+                                 behavioral=oldpi,
+                                 per_decision=True)
+        #print('Bound comp. time', time.time() - checkpoint)
+        print("StudentTBound", bound)
+        #"""
+    
+        
+        #Student-t bound grad
+        """
+        bound_grad = pi.eval_bound_grad(states,
+                                 actions,
+                                 rewards,
+                                 lens,
+                                 behavioral=oldpi,
+                                 per_decision=True)
+        print("StudentTBound grad", bound_grad)
+        #"""
+    
+        #Fisher
+        """
+        checkpoint = time.time()
+        fisher = oldpi.eval_fisher(states, actions, lens, behavioral=None)
+        #print(fisher)
+        assert np.array_equal(fisher, fisher.T)
+        print('Fisher comp. time', time.time() - checkpoint)
+        checkpoint = time.time()
+        natural = np.linalg.solve(fisher + 1e-12*np.eye(fisher.shape[0]), grad_J)
+        print(natural)
+        #print('Fisher vector product time:', time.time() - checkpoint)
+        #"""
+        
+        #Logging
+        logger.record_tabular("Step_size", stepsize)
+        #logger.record_tabular("Our_bound", bound)
+        #logger.record_tabular("Reny_4", renyi_4)
+        logger.record_tabular("SampleRenyi2", sample_d2)
+        #logger.record_tabular("Max_iw", max_iw)
+        #logger.record_tabular("Ess", ess)
+        #logger.record_tabular("Avg_iw", avg_iw)
+        #logger.record_tabular("Var_iw", var_iw)
+        #logger.record_tabular("Max_ret", max_ret)
+        #logger.record_tabular("Avg_ret", avg_ret)
+        #logger.record_tabular("Var_ret", var_ret)
+        logger.record_tabular("EpLenMean", np.mean(lens))
+        logger.record_tabular("DiscEpRewMean", np.mean(disc_rews))
+        logger.record_tabular("EpRewMean", np.mean(rews))
         logger.record_tabular("EpThisIter", len(lens))
+        logger.record_tabular("J_hat", J)
+        logger.record_tabular("Var_J", var_J)
         episodes_so_far += len(lens)
         timesteps_so_far += sum(lens)
         iters_so_far += 1

@@ -57,7 +57,7 @@ class MlpPolicy(object):
 
         #Actor
         with tf.variable_scope('pol'):
-            last_out = ob
+            last_out = tf.clip_by_value((ob - self.ob_rms.mean) / self.ob_rms.std, -5.0, 5.0)
             for i in range(num_hid_layers):
                 last_out = tf.nn.tanh(tf.layers.dense(last_out, hid_size[i],
                                                       name='fc%i'%(i+1),

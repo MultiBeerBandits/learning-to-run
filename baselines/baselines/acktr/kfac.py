@@ -126,7 +126,7 @@ class KfacOptimizer():
 
         for t, param in zip(g, varlist):
             if KFAC_DEBUG:
-                print(('get factor for '+param.name))
+                print(('get factor for '+param.nKFAC_DEBUGame))
             factors = searchFactors(t, graph)
             factorTensors[param] = factors
 
