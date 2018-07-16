@@ -429,5 +429,7 @@ class DDPG(object):
     def update_param_noise_stddev(self):
         # get the current stddev of the action noise and set it as
         # desired parameter noise sttdev
-        desired = self.action_noise.sigma
-        self.param_noise.desired_action_stddev = desired
+        if self.action_noise is not None:
+            desired = self.action_noise.sigma
+        if self.param_noise is not None:
+            self.param_noise.desired_action_stddev = desired

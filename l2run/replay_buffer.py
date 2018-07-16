@@ -13,7 +13,9 @@ class ReplayBufferFlip(Memory):
         self.action_space_size = action_shape[0]
 
     def sample(self, batch_size):
-        buff = super(ReplayBufferFlip, self).sample(batch_size//2)
+        if self.flip_state:
+            batch_size = batch_size // 2
+        buff = super(ReplayBufferFlip, self).sample(batch_size)
         if self.flip_state:
             buff['obs0'] = np.vstack(
                 (buff['obs0'], self.swap_states(buff['obs0'])))

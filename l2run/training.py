@@ -186,6 +186,7 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                               normalize_returns,
                               batch_size,
                               normalize_observations,
+                              param_noise,
                               critic_l2_reg,
                               popart,
                               clip_norm,
@@ -261,6 +262,7 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                     waiting_indices.clear()
 
                 # Collect results when ready
+<<<<<<< HEAD
                 # if num_processes_to_wait == 0:
                 #     try:
                 #         process_index, transitions = outputQ.get_nowait()
@@ -273,6 +275,8 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                 #         # No sampling ready, keep on training.
                 #         pass
                 # else:
+=======
+>>>>>>> master
                 for i in range(num_processes_to_wait):
                     process_index, transitions = outputQ.get()
                     waiting_indices.append(process_index)
@@ -281,7 +285,11 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                     for t in transitions:
                         agent.store_transition(*t)
 
+<<<<<<< HEAD
                 #try to collect other samples if available
+=======
+                # try to collect other samples if available
+>>>>>>> master
                 for i in range(num_processes):
                     try:
                         process_index, transitions = outputQ.get_nowait()
@@ -320,7 +328,6 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
 
                     if cycle % save_freq == 0:
                         # Save weights
-                        save_path = saver.save(sess, checkpoint_dir)
                         print("Model saved in path: %s" % save_path)
                         # Dump learning session
                         learning_session.dump(agent.training_step)
