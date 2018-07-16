@@ -24,11 +24,11 @@ from mpi4py import MPI
 from learning_session import LearningSession
 
 
-def pack_run_params(seed, noise_type, layer_norm, evaluation, flip_state,
+def pack_run_params(seed, parameter_noise, layer_norm, evaluation, flip_state,
                     full, action_repeat, fail_reward, exclude_centering_frame, **kwargs):
     args = kwargs.copy()
     args['seed'] = seed
-    args['noise_type'] = noise_type
+    args['parameter_noise'] = parameter_noise
     args['layer_norm'] = layer_norm
     args['evaluation'] = evaluation
     args['flip_state'] = flip_state
@@ -39,7 +39,7 @@ def pack_run_params(seed, noise_type, layer_norm, evaluation, flip_state,
     return args
 
 
-def run(seed, noise_type, layer_norm, evaluation, flip_state,
+def run(seed, parameter_noise, layer_norm, evaluation, flip_state,
         full, action_repeat, fail_reward, exclude_centering_frame,
         checkpoint_dir, log_dir, session_path, last_training_step,
         integrator_accuracy, experiment_name, **kwargs):
@@ -56,7 +56,7 @@ def run(seed, noise_type, layer_norm, evaluation, flip_state,
         log_dir = tmp_log
     if checkpoint_dir is None:
         checkpoint_dir = tmp_chkpt
-    param_noise = None
+
     # Configure things.
     rank = MPI.COMM_WORLD.Get_rank()
     if rank != 0:
@@ -70,6 +70,11 @@ def run(seed, noise_type, layer_norm, evaluation, flip_state,
 
     # Parse noise_type
     nb_actions = env.action_space.shape[-1]
+    if parameter_noise:
+        param_noise = AdaptiveParamNoiseSpec(
+            initial_stddev=0.2, desired_action_stddev=0.2)
+    else:
+        param_noise = None
     action_noise = OrnsteinUhlenbeckActionNoise(
         mu=np.zeros(nb_actions), sigma=0.2, theta=0.1)
 
@@ -98,13 +103,14 @@ def run(seed, noise_type, layer_norm, evaluation, flip_state,
 
     # Create LearningSession was passed
     del kwargs['func']
-    sess_args = pack_run_params(seed, noise_type, layer_norm, evaluation, flip_state,
+    sess_args = pack_run_params(seed, parameter_noise, layer_norm, evaluation, flip_state,
                                 full, action_repeat, fail_reward, exclude_centering_frame, **kwargs)
     learning_session = LearningSession(
         session_path, checkpoint_dir, log_dir, last_training_step, **sess_args)
 
     del kwargs['num_timesteps']
-    training.train(env=env, action_noise=action_noise,
+    del kwargs['noise_type']
+    training.train(env=env, action_noise=action_noise, param_noise=param_noise,
                    actor=actor, critic=critic, memory=memory,
                    visualize=False, full=full, action_repeat=action_repeat,
                    fail_reward=fail_reward, exclude_centering_frame=exclude_centering_frame,
@@ -212,6 +218,8 @@ def build_train_args(sub_parsers):
     # save net weights each save-freq
     parser.add_argument('--save-freq', type=int, default=20)
     # choices are adaptive-param_xx, ou_xx, normal_xx, none
+    boolean_flag(parser, 'parameter-noise', default=True,
+                 help='If True, use Adaptive paramter noise')
     parser.add_argument('--noise-type', type=str, default='adaptive-param_0.2')
     parser.add_argument('--num-timesteps', type=int, default=None)
     # DDPG improvements
