@@ -37,8 +37,8 @@ def train(num_episodes, horizon, iw_method, iw_norm, natural, bound, delta, seed
 
     def make_policy(name, ob_space, ac_space):
         return MlpPolicy(name=name, ob_space=ob_space, ac_space=ac_space,
-                         hid_size=hid_size, num_hid_layers=num_hid_layers, gaussian_fixed_var=True, use_bias=False, use_critic=False,
-                          use_rms=False)
+                         hid_size=hid_size, num_hid_layers=num_hid_layers, gaussian_fixed_var=True, use_bias=True, use_critic=False,
+                         )
 
     sampler = ParallelSampler(make_policy, make_env, num_episodes, horizon, True, n_workers=njobs, seed=seed)
 
