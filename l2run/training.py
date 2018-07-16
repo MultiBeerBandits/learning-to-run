@@ -308,7 +308,7 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
 
                     if cycle % save_freq == 0:
                         # Save weights
-                        save_path = saver.save(sess, checkpoint_dir)
+                        save_path = saver.save(sess, checkpoint_dir, global_step=global_step)
                         print("Model saved in path: %s" % save_path)
                         # Dump learning session
                         learning_session.dump(agent.training_step)
