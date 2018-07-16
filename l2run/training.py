@@ -125,7 +125,7 @@ class EvaluationStatistics:
 def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train_steps,
           eval_freq, save_freq, nb_eval_episodes, actor,
           critic, memory, gamma, normalize_returns, normalize_observations,
-          critic_l2_reg, action_noise, popart, clip_norm,
+          critic_l2_reg, action_noise, param_noise, popart, clip_norm,
           batch_size, reward_scale, action_repeat, full, exclude_centering_frame,
           visualize, fail_reward, num_processes, num_processes_to_wait, num_testing_processes,
           learning_session, min_buffer_length, integrator_accuracy=5e-5, max_env_traj=100, tau=0.01):
@@ -262,21 +262,6 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                     waiting_indices.clear()
 
                 # Collect results when ready
-<<<<<<< HEAD
-                # if num_processes_to_wait == 0:
-                #     try:
-                #         process_index, transitions = outputQ.get_nowait()
-                #         waiting_indices.append(process_index)
-                #         print('Collecting transition samples from Worker {}'.format(
-                #             process_index))
-                #         for t in transitions:
-                #             agent.store_transition(*t)
-                #     except queue.Empty:
-                #         # No sampling ready, keep on training.
-                #         pass
-                # else:
-=======
->>>>>>> master
                 for i in range(num_processes_to_wait):
                     process_index, transitions = outputQ.get()
                     waiting_indices.append(process_index)
@@ -285,11 +270,6 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                     for t in transitions:
                         agent.store_transition(*t)
 
-<<<<<<< HEAD
-                #try to collect other samples if available
-=======
-                # try to collect other samples if available
->>>>>>> master
                 for i in range(num_processes):
                     try:
                         process_index, transitions = outputQ.get_nowait()
@@ -328,6 +308,7 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
 
                     if cycle % save_freq == 0:
                         # Save weights
+                        save_path = saver.save(sess, checkpoint_dir, global_step=global_step)
                         print("Model saved in path: %s" % save_path)
                         # Dump learning session
                         learning_session.dump(agent.training_step)
@@ -358,6 +339,7 @@ class SamplingWorker(Process):
                  normalize_returns,
                  batch_size,
                  normalize_observations,
+                 param_noise,
                  critic_l2_reg,
                  popart,
                  clip_norm,
@@ -387,6 +369,7 @@ class SamplingWorker(Process):
         self.normalize_returns = normalize_returns
         self.batch_size = batch_size
         self.normalize_observations = normalize_observations
+        self.param_noise = param_noise
         self.critic_l2_reg = critic_l2_reg
         self.popart = popart
         self.clip_norm = clip_norm
@@ -401,6 +384,10 @@ class SamplingWorker(Process):
         self.action_noise_prob = action_noise_prob
         self.integrator_accuracy = integrator_accuracy
         self.max_env_traj = max_env_traj
+
+        # apply always action noise if param noise is None
+        if param_noise is None:
+            self.action_noise_prob = 1
 
     def run(self):
         """Override Process.run()"""
@@ -424,10 +411,6 @@ class SamplingWorker(Process):
                                                     sigma=0.2,
                                                     theta=0.1)
 
-        # Create Parameter Noise
-        param_noise = AdaptiveParamNoiseSpec(
-            initial_stddev=0.2, desired_action_stddev=0.2)
-
         # Allocate ReplayBuffer
         memory = Memory(limit=int(1e6), action_shape=env.action_space.shape,
                         observation_shape=env.observation_space.shape)
@@ -438,7 +421,7 @@ class SamplingWorker(Process):
                      normalize_returns=self.normalize_returns,
                      normalize_observations=self.normalize_observations,
                      batch_size=self.batch_size, action_noise=action_noise,
-                     param_noise=param_noise, critic_l2_reg=self.critic_l2_reg,
+                     param_noise=self.param_noise, critic_l2_reg=self.critic_l2_reg,
                      enable_popart=self.popart, clip_norm=self.clip_norm,
                      reward_scale=self.reward_scale)
 
