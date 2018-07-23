@@ -129,3 +129,6 @@ MUJOCO_LOG.TXT
 
 # Videos
 python*/
+videos/
+server_logs/
+server_ckpts/

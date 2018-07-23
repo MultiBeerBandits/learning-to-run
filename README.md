@@ -1,6 +1,7 @@
 # learning-to-run
 A project for the Deep Learning course held at Politecnico di Milano (A.Y. 2018).
 Implementation taken from Reason8 group.
+Video: https://drive.google.com/open?id=1ZV9O_IeTAUA-ZZBXmrWz9-hjqnxGz6rO
 
 # Observation vector
 Values in the full observation vector
