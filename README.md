@@ -4,13 +4,12 @@ Implementation taken from Reason8 group.
 Video: https://drive.google.com/open?id=1ZV9O_IeTAUA-ZZBXmrWz9-hjqnxGz6rO
 
 # Observation vector
-Values in the full observation vector
-- x, y, vx, vy, ax, ay, rz, vrz, arz of pelvis (8 values)
-- x, y, vx, vy, ax, ay, rz, vrz, arz of head, torso, toes_l, toes_r, talus_l, talus_r (9*6 values)
-- rz, vrz, arz of ankle_l, ankle_r, back, hip_l, hip_r, knee_l, knee_r (7*3 values)
-- activation, fiber_len, fiber_vel for all muscles (3*18)
-- x, y, vx, vy, ax, ay of center of mass (6)
-- 8 + 9*6 + 8*3 + 3*18 + 6 = 146
+Values in the full observation vector (full_state branch)
+- x, y, vx, vy of pelvis (4 values)
+- x, y, vx, vy, ax, ay of head, torso, toes_l, toes_r, talus_l, talus_r (6*6 values)
+- rz, vrz, arz of ankle_l, ankle_r, back, hip_l, hip_r, knee_l, knee_r, ground_pelvis (8*3 values)
+- x, y, vx, vy of center of mass (4)
+- 4 + 6*6 + 8*3 + 4 = 68
 
 Values in the basic observation vector:
 - x, y of pelvis (2 values)
