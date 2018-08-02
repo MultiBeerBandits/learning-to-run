@@ -1,7 +1,10 @@
 # learning-to-run
 A project for the Deep Learning course held at Politecnico di Milano (A.Y. 2018).
 Implementation taken from Reason8 group.
-Video: https://drive.google.com/open?id=1ZV9O_IeTAUA-ZZBXmrWz9-hjqnxGz6rO
+Video: https://youtu.be/HVOrhxypOGg
+
+# Documentation
+You can find the paper describing our approach and our results in the "doc" folder inside this repository.
 
 # Observation vector
 Values in the full observation vector (full_state branch)
