@@ -270,7 +270,6 @@ def train(env, nb_epochs, nb_episodes, nb_epoch_cycles, episode_length, nb_train
                     for t in transitions:
                         agent.store_transition(*t)
 
-                # try to collect other samples if available
                 for i in range(num_processes):
                     try:
                         process_index, transitions = outputQ.get_nowait()

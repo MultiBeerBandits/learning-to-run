@@ -145,47 +145,56 @@ class L2RunEnvWrapper(gym.Wrapper):
         res = []
         pelvis = None
 
-        for body_part in ["pelvis", "head","torso","toes_l","toes_r","talus_l","talus_r"]:
-            # if self.prosthetic and body_part in ["toes_r","talus_r"]:
-            #     res += [0] * 9
-            #     continue
-            cur = []
-            cur += state_desc["body_pos"][body_part][0:2]
-            cur += state_desc["body_vel"][body_part][0:2]
-            cur += state_desc["body_acc"][body_part][0:2]
-            cur += state_desc["body_pos_rot"][body_part][2:]
-            cur += state_desc["body_vel_rot"][body_part][2:]
-            cur += state_desc["body_acc_rot"][body_part][2:]
-            # store pelvis pose in pelvis var and use it for centering of 
-            # body poses. If asked also add pelvis to obs vector
-            if body_part == "pelvis":
-                pelvis = cur
-                # add pelvis to the observation vector
-                if not self.exclude_centering_frame:
-                    res += cur
-                # otherwise keep only velocities and acc of pelvis
-                else:
-                    res += cur[2:]
-            # if it is not pelvis, then brings everithing in the pelvis 
-            # reference system
-            else:
-                cur_upd = cur
-                cur_upd[:2] = [cur[i] - pelvis[i] for i in range(2)]
-                cur_upd[6:7] = [cur[i] - pelvis[i] for i in range(6,7)]
-                res += cur
+        # Augmented environment from the L2R challenge
+        res = []
+        # obtain pelvis x,y coordinates
+        # x coordinate is used to center the x coord of other 
+        # observations, and it is added to the observation vector
+        # only if required
+        pelvis_x = state_desc["body_pos"]["pelvis"][0]
+        pelvis_y = state_desc["body_pos"]["pelvis"][1]
+        if not self.exclude_centering_frame:
+            res += [pelvis_x]
+        res += [pelvis_y]
 
-        for joint in ["ankle_l","ankle_r","back","hip_l","hip_r","knee_l","knee_r"]:
+        for joint in ["hip_l","hip_r","knee_l","knee_r","ankle_l","ankle_r", "back"]:
             res += state_desc["joint_pos"][joint]
             res += state_desc["joint_vel"][joint]
             res += state_desc["joint_acc"][joint]
 
-        for muscle in state_desc["muscles"].keys():
-            res += [state_desc["muscles"][muscle]["activation"]]
-            res += [state_desc["muscles"][muscle]["fiber_length"]]
-            res += [state_desc["muscles"][muscle]["fiber_velocity"]]
+        # ground pelvis rotation, rotation speed, rotation acc
+        res += state_desc["joint_pos"]["ground_pelvis"][0:1]
+        res += state_desc["joint_vel"]["ground_pelvis"][0:1]
+        res += state_desc["joint_acc"]["ground_pelvis"][0:1]
 
-        cm_pos = [state_desc["misc"]["mass_center_pos"][i] - pelvis[i] for i in range(2)]
-        res = res + cm_pos + state_desc["misc"]["mass_center_vel"] + state_desc["misc"]["mass_center_acc"]
+        # center body parts poses in pelvis reference
+        for body_part in ["head", "torso", "toes_l", "toes_r", "talus_l", "talus_r"]:
+            res += [state_desc["body_pos"][body_part][0] - pelvis_x] # x coord centerd
+            res += [state_desc["body_pos"][body_part][1]] # y coord
+            res += state_desc["body_vel"][body_part][0:2]
+            res += state_desc["body_acc"][body_part][0:2]
+            # res += state_desc["body_pos_rot"][body_part][2:]
+            # res += state_desc["body_vel_rot"][body_part][2:]
+            # res += state_desc["body_acc_rot"][body_part][2:]
+
+        # muscles
+        #'hamstrings_r', 'bifemsh_r', 'glut_max_r', 'iliopsoas_r', 'rect_fem_r', 'vasti_r', 'gastroc_r', 'soleus_r', 'tib_ant_r', 'hamstrings_l', 'bifemsh_l', 'glut_max_l', 'iliopsoas_l', 'rect_fem_l', 'vasti_l', 'gastroc_l', 'soleus_l', 'tib_ant_l'
+        # for muscle in ["hamstrings_l","hamstrings_r","bifemsh_l",
+        #                "bifemsh_r", "glut_max_l", "glut_max_r",
+        #                "iliopsoas_l", "iliopsoas_r", "rect_fem_l",
+        #                "rect_fem_r", "vasti_l", "vasti_r","gastroc_l",
+        #                "gastroc_r", "soleus_l", "soleus_r", "tib_ant_l",
+        #                "tib_ant_r"]:
+        #     res += [state_desc["muscles"][muscle]["activation"]]
+        #     res += [state_desc["muscles"][muscle]["fiber_length"]]
+
+        # center in pelvis reference also the center of mass
+        res += [state_desc["misc"]["mass_center_pos"][0] - pelvis_x] # x coord centered
+        res += [state_desc["misc"]["mass_center_pos"][1]] # y coord
+        res += state_desc["misc"]["mass_center_vel"]
+
+        # add pelvis x and y speed
+        res += state_desc["body_vel"]["pelvis"][0:2]
 
         return res
 
@@ -215,9 +224,13 @@ class L2RunEnvWrapper(gym.Wrapper):
     # rigth and left strings are put in flippable features of the obs space
     def get_observation_names(self):
         if self.full:
-            names = [body_part + "_" + var for (body_part, var) in product(['pelvis', 'head', 'torso', 'toes_left', 'toes_right', 'talus_left', 'talus_right'], ['x', 'y', 'vx', 'vy', 'ax', 'ay', 'rz', 'vrz', 'arz'])]
-            names += [body_part + "_" + var for (body_part, var) in product(['ankle_left', 'ankle_right', 'back', 'hip_left', 'hip_right', 'knee_left', 'knee_right'], ['rz', 'vrz', 'arz'])]
-            names += ['center_of_mass' + var for var in ['x', 'y', 'vx', 'vy', 'ax', 'ay', 'ofg']]
+            names = ["pelvis_x", "pelvis_y"]
+            names += [joint + "_" + var for (joint, var) in product(["hip_left","hip_right","knee_left","knee_right","ankle_left","ankle_right","back"], ["rz", "vrz","arz"])]
+            names += ["ground_pelvis_rot", "ground_pelvis_vel_rot","ground_pelvis_acc_rot"]
+            names += [body_part + "_" + var for (body_part, var) in product(["head", "torso", "toes_left", "toes_right", "talus_left", "talus_right"], ["x", "y", "vx", "vy", "ax", "ay"])] #"r", "vr", "ar"])]
+            #names += [muscle + "_" + var for (muscle,var) in product(["hamstrings_left","hamstrings_right","bifemsh_left", "bifemsh_right", "glut_max_left", "glut_max_right","iliopsoas_left", "iliopsoas_right", "rect_fem_left", "rect_fem_right", "vasti_left", "vasti_right","gastroc_left", "gastroc_right", "soleus_left", "soleus_right", "tib_ant_left", "tib_ant_right"], ["activation", "fiber_length"])]
+            names += ["com_x", "com_y", "com_vel_x", "com_vel_y"]  
+            names += ["pelvis_vel_x", "pelvis_vel_y"]          
         else:
             names = ["pelvis_x", "pelvis_y"]
             names += [joint + "_" + var for (joint, var) in product(["hip_left","hip_right","knee_left","knee_right","ankle_left","ankle_right"], ["rz", "vrz"])]

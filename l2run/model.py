@@ -18,7 +18,7 @@ class Actor(Model):
             if reuse:
                 scope.reuse_variables()
             x = obs
-            x = tf.layers.dense(x, 64, kernel_initializer=xavier)
+            x = tf.layers.dense(x, 150, kernel_initializer=xavier)
             if self.layer_norm:
                 x = tc.layers.layer_norm(x, center=True, scale=True)
             x = tf.nn.elu(x)
@@ -51,12 +51,12 @@ class Critic(Model):
             print("obs shape : {}, action shape: {}".format(
                 obs.shape, action.shape))
             x = tf.concat([obs, action], axis=-1)
-            x = tf.layers.dense(x, 64, kernel_initializer=xavier)
+            x = tf.layers.dense(x, 150, kernel_initializer=xavier)
             if self.layer_norm:
                 x = tc.layers.layer_norm(x, center=True, scale=True)
             x = tf.nn.tanh(x)
 
-            x = tf.layers.dense(x, 32, kernel_initializer=xavier)
+            x = tf.layers.dense(x, 50, kernel_initializer=xavier)
             if self.layer_norm:
                 x = tc.layers.layer_norm(x, center=True, scale=True)
             x = tf.nn.tanh(x)
